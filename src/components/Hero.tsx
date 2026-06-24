@@ -19,7 +19,7 @@ export function Hero() {
           {/* Title */}
           <h1 className="mt-6 text-4xl font-semibold tracking-tight text-foreground sm:text-6xl">
             Everything your vehicle needs,{" "}
-            <span className="bg-gradient-primary bg-clip-text text-transparent">
+            <span className="text-gradient-primary">
               in one log.
             </span>
           </h1>

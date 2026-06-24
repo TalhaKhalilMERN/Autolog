@@ -33,7 +33,8 @@
   --ring: oklch(55% .12 210);
   
   --gradient-primary: linear-gradient(135deg, var(--primary), var(--primary-glow));
-  --gradient-hero: radial-gradient(120% 80% at 50% 0%, var(--primary) 0%, transparent 60%), linear-gradient(180deg, var(--background) 0%, var(--surface) 100%);
+  /* Light hero: extremely subtle 4% primary tint — nearly white like Lovable preview */
+  --gradient-hero: radial-gradient(ellipse 80% 40% at 50% 0%, oklch(55% .12 210 / 0.07) 0%, transparent 75%), linear-gradient(180deg, var(--background) 0%, var(--surface) 100%);
   --gradient-subtle: linear-gradient(180deg, color-mix(in oklab, var(--primary) 4%, transparent), transparent);
   
   --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent), 0 20px 60px -20px color-mix(in oklab, var(--primary) 40%, transparent);
@@ -70,7 +71,8 @@
   --input: oklch(100% 0 0 / .1);
   --ring: oklch(78% .13 200);
   
-  --gradient-hero: radial-gradient(120% 80% at 50% 0%, var(--primary) 0%, transparent 60%), linear-gradient(180deg, var(--background) 0%, oklch(14% .015 250) 100%);
+  /* Dark hero: softened 15% tint, keeps moody feel without overpowering */
+  --gradient-hero: radial-gradient(ellipse 80% 40% at 50% 0%, oklch(78% .13 200 / 0.15) 0%, transparent 70%), linear-gradient(180deg, var(--background) 0%, oklch(14% .015 250) 100%);
   --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent), 0 24px 80px -20px color-mix(in oklab, var(--primary) 35%, transparent);
   --shadow-elevated: 0 10px 15px -3px oklch(0% 0 0 / 0.3), 0 4px 6px -4px oklch(0% 0 0 / 0.3);
 }
@@ -121,14 +123,21 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Custom background grid styling */
+/* Background grid — very faint lines using direct opacity values */
 .bg-grid {
   background-image: 
-    linear-gradient(to right, var(--foreground) 1px, transparent 1px), 
-    linear-gradient(to bottom, var(--foreground) 1px, transparent 1px);
+    linear-gradient(to right, oklch(18% .02 250 / 0.06) 1px, transparent 1px), 
+    linear-gradient(to bottom, oklch(18% .02 250 / 0.06) 1px, transparent 1px);
   background-size: 56px 56px;
-  -webkit-mask-image: radial-gradient(70% 50% at 50% 0, #000 40%, transparent 80%);
-  mask-image: radial-gradient(70% 50% at 50% 0, #000 40%, transparent 80%);
+  -webkit-mask-image: radial-gradient(60% 40% at 50% 0, #000 30%, transparent 75%);
+  mask-image: radial-gradient(60% 40% at 50% 0, #000 30%, transparent 75%);
+}
+
+/* Dark mode grid: white lines with low opacity */
+.dark .bg-grid {
+  background-image:
+    linear-gradient(to right, oklch(96% .005 240 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(96% .005 240 / 0.06) 1px, transparent 1px);
 }
 
 .bg-gradient-hero {
@@ -141,6 +150,19 @@ body {
 
 .bg-gradient-subtle {
   background: var(--gradient-subtle);
+}
+
+/*
+  Gradient text fix:
+  bg-clip-text only works with background-image, NOT the background shorthand.
+  Use this utility class instead of combining bg-gradient-primary + bg-clip-text.
+*/
+.text-gradient-primary {
+  background-image: linear-gradient(135deg, var(--primary), var(--primary-glow));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .shadow-glow {
