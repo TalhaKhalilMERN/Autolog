@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 /* ─────────────── Zod Schema ─────────────── */
 const loginSchema = z.object({
@@ -45,11 +47,21 @@ function FormField({
   );
 }
 
-/* ─────────────── Page ─────────────── */
-export default function LoginPage() {
+/* ─────────────── Inner Form Component ─────────────── */
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Check for error parameters in URL (e.g. from callbacks)
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam) {
+      setServerError(errorParam);
+    }
+  }, [searchParams]);
 
   const {
     register,
@@ -63,10 +75,25 @@ export default function LoginPage() {
   async function onSubmit(data: LoginFormValues) {
     setIsSubmitting(true);
     setServerError(null);
-    // TODO: wire up to Supabase auth
-    console.log("Login payload:", data);
-    await new Promise((r) => setTimeout(r, 1200)); // simulate network
-    setIsSubmitting(false);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (error) {
+        setServerError(error.message);
+      } else {
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch (err: any) {
+      setServerError("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -83,7 +110,7 @@ export default function LoginPage() {
 
       {/* Server-level error (e.g. wrong credentials) */}
       {serverError && (
-        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive animate-in fade-in duration-200">
           {serverError}
         </div>
       )}
@@ -124,7 +151,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -145,7 +172,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px disabled:pointer-events-none disabled:opacity-60"
+          className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px disabled:pointer-events-none disabled:opacity-60 cursor-pointer"
         >
           {isSubmitting ? (
             <>
@@ -169,5 +196,19 @@ export default function LoginPage() {
         </Link>
       </p>
     </>
+  );
+}
+
+/* ─────────────── Main Export Wrapper ─────────────── */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-2 text-sm text-muted-foreground">Loading login form...</p>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

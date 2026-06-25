@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useState } from "react";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 /* ─────────────── Zod Schema ─────────────── */
 const signupSchema = z
@@ -66,6 +67,8 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [successEmail, setSuccessEmail] = useState<string | null>(null);
 
   const {
     register,
@@ -78,10 +81,62 @@ export default function SignupPage() {
 
   async function onSubmit(data: SignupFormValues) {
     setIsSubmitting(true);
-    // TODO: wire up to Supabase auth
-    console.log("Signup payload:", data);
-    await new Promise((r) => setTimeout(r, 1200)); // simulate network
-    setIsSubmitting(false);
+    setServerError(null);
+    setSuccessEmail(null);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.fullName,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setServerError(error.message);
+      } else {
+        setSuccessEmail(data.email);
+      }
+    } catch (err: any) {
+      setServerError("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (successEmail) {
+    return (
+      <div className="flex flex-col items-center text-center py-4 animate-in fade-in duration-300">
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <CheckCircle className="h-6 w-6" />
+        </div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Confirm your email
+        </h1>
+        <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+          We've sent a verification link to <span className="font-medium text-foreground">{successEmail}</span>. Please click the link in the email to activate your account.
+        </p>
+        <div className="mt-8 flex flex-col gap-3 w-full">
+          <Link
+            href="/login"
+            className="flex w-full items-center justify-center rounded-lg bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px"
+          >
+            Go to sign in
+          </Link>
+          <button
+            onClick={() => setSuccessEmail(null)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4 cursor-pointer"
+          >
+            Try registering with another email
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -96,6 +151,13 @@ export default function SignupPage() {
           <span className="text-primary font-medium">No credit card required.</span>
         </p>
       </div>
+
+      {/* Server-level error */}
+      {serverError && (
+        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive animate-in fade-in duration-200">
+          {serverError}
+        </div>
+      )}
 
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
@@ -149,7 +211,7 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -183,7 +245,7 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={() => setShowConfirm((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               aria-label={showConfirm ? "Hide password" : "Show password"}
             >
               {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -195,7 +257,7 @@ export default function SignupPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px disabled:pointer-events-none disabled:opacity-60"
+          className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px disabled:pointer-events-none disabled:opacity-60 cursor-pointer"
         >
           {isSubmitting ? (
             <>
@@ -221,3 +283,4 @@ export default function SignupPage() {
     </>
   );
 }
+
