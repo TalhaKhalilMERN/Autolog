@@ -82,11 +82,20 @@ export default async function VehicleDetailPage({
               )}
             </div>
           </div>
-          {vehicle.fuel_type && (
-            <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              {vehicle.fuel_type}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {vehicle.fuel_type && (
+              <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                {vehicle.fuel_type}
+              </span>
+            )}
+            <Link
+              href={`/vehicles/${vehicle.id}/edit`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Edit
+            </Link>
+          </div>
         </div>
       </div>
 
