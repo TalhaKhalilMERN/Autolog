@@ -8,6 +8,9 @@ import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
+import { useCreateVehicle } from "@/features/vehicles/hooks/vehicles";
+import type { VehicleInsert } from "@/lib/types";
+
 /* ─── Schema ─── */
 const currentYear = new Date().getFullYear();
 
@@ -90,8 +93,8 @@ const inputClass = (hasError?: boolean) =>
 /* ─── Page ─── */
 export default function NewVehiclePage() {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const createVehicleMutation = useCreateVehicle();
 
   const {
     register,
@@ -103,45 +106,32 @@ export default function NewVehiclePage() {
     defaultValues: { year: currentYear },
   });
 
+  const isSubmitting = createVehicleMutation.isPending;
+
   async function onSubmit(data: VehicleFormValues) {
-    setIsSubmitting(true);
     setServerError(null);
 
     try {
-      // ── POST to API route ──────────────────────────────────────────────
-      const payload: Record<string, unknown> = {
+      const payload: VehicleInsert = {
         make: data.make,
         model: data.model,
         year: Number(data.year),
+        variant: data.variant || null,
+        engine: data.engine || null,
+        transmission: data.transmission || null,
+        fuel_type: data.fuel_type || null,
+        registration_number: data.registration_number || null,
+        current_odometer:
+          data.current_odometer !== undefined && !Number.isNaN(data.current_odometer)
+            ? Number(data.current_odometer)
+            : null,
       };
 
-      if (data.variant) payload.variant = data.variant;
-      if (data.engine) payload.engine = data.engine;
-      if (data.transmission) payload.transmission = data.transmission;
-      if (data.fuel_type) payload.fuel_type = data.fuel_type;
-      if (data.registration_number) payload.registration_number = data.registration_number;
-      if (data.current_odometer !== undefined && !Number.isNaN(data.current_odometer)) {
-        payload.current_odometer = Number(data.current_odometer);
-      }
-
-      const res = await fetch("/api/vehicles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        setServerError(json.error ?? "Failed to create vehicle.");
-      } else {
-        router.push("/vehicles");
-        router.refresh();
-      }
-    } catch {
-      setServerError("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+      await createVehicleMutation.mutateAsync(payload);
+      router.push("/vehicles");
+      router.refresh();
+    } catch (err: any) {
+      setServerError(err.message || "Failed to create vehicle.");
     }
   }
 

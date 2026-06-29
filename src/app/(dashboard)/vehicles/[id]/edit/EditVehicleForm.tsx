@@ -7,7 +7,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { Vehicle } from "@/lib/types";
+import type { Vehicle, VehicleInsert } from "@/lib/types";
+import { useUpdateVehicle } from "@/features/vehicles/hooks/vehicles";
 
 /* ─── Schema ─── */
 const currentYear = new Date().getFullYear();
@@ -86,8 +87,8 @@ const inputClass = (hasError?: boolean) =>
 
 export function EditVehicleForm({ vehicle }: { vehicle: Vehicle }) {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const updateVehicleMutation = useUpdateVehicle();
 
   const {
     register,
@@ -109,12 +110,13 @@ export function EditVehicleForm({ vehicle }: { vehicle: Vehicle }) {
     },
   });
 
+  const isSubmitting = updateVehicleMutation.isPending;
+
   async function onSubmit(data: VehicleFormValues) {
-    setIsSubmitting(true);
     setServerError(null);
 
     try {
-      const payload: Record<string, unknown> = {
+      const payload: Partial<VehicleInsert> = {
         make: data.make,
         model: data.model,
         year: Number(data.year),
@@ -129,24 +131,11 @@ export function EditVehicleForm({ vehicle }: { vehicle: Vehicle }) {
             : null,
       };
 
-      const res = await fetch(`/api/vehicles/${vehicle.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        setServerError(json.error ?? "Failed to update vehicle.");
-      } else {
-        router.push(`/vehicles/${vehicle.id}`);
-        router.refresh();
-      }
-    } catch {
-      setServerError("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+      await updateVehicleMutation.mutateAsync({ id: vehicle.id, payload });
+      router.push(`/vehicles/${vehicle.id}`);
+      router.refresh();
+    } catch (err: any) {
+      setServerError(err.message || "Failed to update vehicle.");
     }
   }
 

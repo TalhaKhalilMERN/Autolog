@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Trash2, Loader2 } from "lucide-react";
 
+import { useDeleteVehicle } from "@/features/vehicles/hooks/vehicles";
+
 /**
  * DeleteVehicleButton
  *
@@ -19,31 +21,21 @@ export function DeleteVehicleButton({
   vehicleName: string;
 }) {
   const router = useRouter();
-  const [isPending, setIsPending] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const deleteMutation = useDeleteVehicle();
+
+  const isPending = deleteMutation.isPending;
 
   async function handleDelete() {
-    setIsPending(true);
     setError(null);
 
     try {
-      // ── DELETE via API route ───────────────────────────────────────────
-      const res = await fetch(`/api/vehicles/${vehicleId}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const json = await res.json();
-        setError(json.error ?? "Failed to delete vehicle.");
-        setIsPending(false);
-      } else {
-        router.push("/vehicles");
-        router.refresh();
-      }
-    } catch {
-      setError("An unexpected error occurred.");
-      setIsPending(false);
+      await deleteMutation.mutateAsync(vehicleId);
+      router.push("/vehicles");
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete vehicle.");
     }
   }
 

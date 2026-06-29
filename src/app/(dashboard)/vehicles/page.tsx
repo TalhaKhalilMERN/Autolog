@@ -1,24 +1,26 @@
-import { createClient } from "@/lib/supabase/server";
-import { listVehicles } from "@/lib/services/vehicles";
+"use client";
+
 import Link from "next/link";
 import { Plus, Car } from "lucide-react";
-import type { Vehicle } from "@/lib/types";
+import { useVehicles } from "@/features/vehicles/hooks/vehicles";
+import VehiclesLoading from "./loading";
 
-export default async function VehiclesPage() {
-  const supabase = await createClient();
+export default function VehiclesPage() {
+  const { data: vehicles, isLoading, error } = useVehicles();
 
-  // ── Data via service layer ──────────────────────────────────────────────
-  const result = await listVehicles(supabase);
+  if (isLoading) {
+    return <VehiclesLoading />;
+  }
 
-  if (result.error) {
+  if (error) {
     return (
       <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">
-        Failed to load vehicles: {result.error}
+        Failed to load vehicles: {error.message}
       </div>
     );
   }
 
-  const vehicles: Vehicle[] = result.data ?? [];
+  const vehiclesList = vehicles ?? [];
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -27,9 +29,9 @@ export default async function VehiclesPage() {
         <div>
           <h2 className="text-xl font-semibold text-foreground">My Vehicles</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {vehicles.length === 0
+            {vehiclesList.length === 0
               ? "No vehicles added yet"
-              : `${vehicles.length} vehicle${vehicles.length !== 1 ? "s" : ""} in your fleet`}
+              : `${vehiclesList.length} vehicle${vehiclesList.length !== 1 ? "s" : ""} in your fleet`}
           </p>
         </div>
         <Link
@@ -42,7 +44,7 @@ export default async function VehiclesPage() {
       </div>
 
       {/* Empty State */}
-      {vehicles.length === 0 && (
+      {vehiclesList.length === 0 && (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
             <Car className="h-7 w-7 text-primary" />
@@ -64,9 +66,9 @@ export default async function VehiclesPage() {
       )}
 
       {/* Vehicles Grid */}
-      {vehicles.length > 0 && (
+      {vehiclesList.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {vehicles.map((v) => (
+          {vehiclesList.map((v) => (
             <Link
               key={v.id}
               href={`/vehicles/${v.id}`}
