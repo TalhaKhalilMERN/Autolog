@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { 
-  Car, LayoutDashboard, Truck, Settings, LogOut, Menu, X, 
-  ChevronRight 
+import {
+  Car,
+  LayoutDashboard,
+  Truck,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  ChevronRight,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
@@ -38,21 +44,25 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center gap-2.5 border-b border-border/60 px-5">
-        <span
-          aria-hidden="true"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-primary shadow-glow"
-        >
-          <Car className="h-4 w-4 text-primary-foreground" />
-        </span>
-        <span className="text-base font-semibold tracking-tight text-foreground">
-          AutoLog
-        </span>
+        <Link href="/" className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-primary shadow-glow"
+          >
+            <Car className="h-4 w-4 text-primary-foreground" />
+          </span>
+          <span className="text-base font-semibold tracking-tight text-foreground">
+            AutoLog
+          </span>
+        </Link>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 space-y-0.5 px-3 py-4">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+          const active =
+            pathname === href ||
+            (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link
               key={href}
@@ -64,7 +74,9 @@ function SidebarContent({
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
             >
-              <Icon className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${active ? "text-primary" : ""}`} />
+              <Icon
+                className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${active ? "text-primary" : ""}`}
+              />
               {label}
               {active && (
                 <ChevronRight className="ml-auto h-3.5 w-3.5 text-primary/60" />

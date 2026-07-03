@@ -3,8 +3,22 @@
 import * as React from "react";
 import Link from "next/link";
 import { useVehicle } from "@/features/vehicles/hooks/vehicles";
-import { ArrowLeft, Car, Gauge, Fuel, Settings2, Hash, Calendar, Layers } from "lucide-react";
+import { useServiceRecords } from "@/features/vehicles/hooks/use-service-records";
+import {
+  ArrowLeft,
+  Car,
+  Gauge,
+  Fuel,
+  Settings2,
+  Hash,
+  Calendar,
+  Layers,
+  Plus,
+  Wrench,
+  Pencil,
+} from "lucide-react";
 import { DeleteVehicleButton } from "@/components/DeleteVehicleButton";
+import { DeleteServiceRecordButton } from "@/components/DeleteServiceRecordButton";
 
 export default function VehicleDetailPage({
   params,
@@ -12,7 +26,11 @@ export default function VehicleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = React.use(params);
-  const { data: vehicle, isLoading, error } = useVehicle(id);
+  const { data: vehicle, isLoading: vehicleLoading, error: vehicleError } = useVehicle(id);
+  const { data: serviceRecords, isLoading: serviceLoading, error: serviceError } = useServiceRecords(id);
+
+  const isLoading = vehicleLoading || serviceLoading;
+  const error = vehicleError || serviceError;
 
   if (isLoading) {
     return (
@@ -29,6 +47,16 @@ export default function VehicleDetailPage({
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-20 animate-pulse rounded-xl bg-muted" />
+            ))}
+          </div>
+        </div>
+
+        {/* Service History skeleton */}
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+          <div className="mb-5 h-5 w-32 animate-pulse rounded bg-muted" />
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
             ))}
           </div>
         </div>
@@ -50,7 +78,7 @@ export default function VehicleDetailPage({
           Back to vehicles
         </Link>
         <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">
-          {error?.message || "Vehicle not found"}
+          {error?.message || "Vehicle or service history not found"}
         </div>
       </div>
     );
@@ -146,6 +174,120 @@ export default function VehicleDetailPage({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Service History Section */}
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-elevated sm:p-8 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Service History</h3>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {serviceRecords && serviceRecords.length > 0
+                ? `${serviceRecords.length} record${serviceRecords.length !== 1 ? "s" : ""} logged`
+                : "No services logged yet"}
+            </p>
+          </div>
+          <Link
+            href={`/vehicles/${id}/service-records/new`}
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Add Service Record
+          </Link>
+        </div>
+
+        {/* Service Records list */}
+        {(!serviceRecords || serviceRecords.length === 0) ? (
+          <div className="flex flex-col items-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-12 text-center">
+            <Wrench className="h-8 w-8 text-primary opacity-60 mb-3" />
+            <p className="text-sm font-medium text-foreground">No service records</p>
+            <p className="mt-1.5 text-xs text-muted-foreground max-w-xs leading-relaxed">
+              Keep track of engine tune-ups, oil changes, tire rotations, and general maintenance.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {serviceRecords.map((record) => (
+              <div
+                key={record.id}
+                className="group relative flex flex-col gap-4 rounded-xl border border-border/60 bg-background/50 p-4 transition-all hover:border-primary/20 sm:p-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
+                      <Wrench className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground">
+                        {record.service_type}
+                      </h4>
+                      <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {new Date(record.service_date).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          timeZone: "UTC",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end text-right">
+                    <span className="text-sm font-semibold text-foreground">
+                      ${Number(record.cost).toFixed(2)}
+                    </span>
+                    <span className="mt-0.5 text-xs text-muted-foreground">
+                      {record.mileage.toLocaleString()} km
+                    </span>
+                  </div>
+                </div>
+
+                {record.notes && (
+                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2.5 border border-border/40 leading-relaxed">
+                    {record.notes}
+                  </p>
+                )}
+
+                {/* Reminders section */}
+                {(record.next_service_date || record.next_service_mileage) && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-border/40 pt-3 text-2xs font-medium text-muted-foreground">
+                    <span className="text-primary/95 font-semibold">Next Service Reminder:</span>
+                    {record.next_service_date && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(record.next_service_date).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          timeZone: "UTC",
+                        })}
+                      </span>
+                    )}
+                    {record.next_service_mileage && (
+                      <span className="flex items-center gap-1">
+                        <Gauge className="h-3 w-3" />
+                        {record.next_service_mileage.toLocaleString()} km
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-3">
+                  <Link
+                    href={`/vehicles/${id}/service-records/${record.id}/edit`}
+                    className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </Link>
+                  <DeleteServiceRecordButton recordId={record.id} serviceType={record.service_type} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Danger Zone */}

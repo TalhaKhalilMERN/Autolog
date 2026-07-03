@@ -16,6 +16,8 @@ export default async function DashboardPage() {
   // ── Data via service layer ──────────────────────────────────────────────
   const statsResult = await getDashboardStats(supabase);
   const vehicleCount = statsResult.data?.vehicleCount ?? 0;
+  const upcomingCount = statsResult.data?.upcomingServicesCount ?? 0;
+  const totalExpenses = statsResult.data?.totalExpenses ?? 0;
 
   const stats = [
     {
@@ -29,19 +31,19 @@ export default async function DashboardPage() {
     },
     {
       label: "Upcoming Services",
-      value: "—",
+      value: upcomingCount,
       icon: Wrench,
-      href: "#",
-      cta: "Coming soon",
+      href: "/vehicles",
+      cta: "View vehicles",
       color: "text-warning",
       bg: "bg-warning/10",
     },
     {
       label: "Total Expenses",
-      value: "—",
+      value: `$${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: DollarSign,
-      href: "#",
-      cta: "Coming soon",
+      href: "/vehicles",
+      cta: "View vehicles",
       color: "text-success",
       bg: "bg-success/10",
     },
