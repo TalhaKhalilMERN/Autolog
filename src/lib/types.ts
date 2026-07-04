@@ -37,10 +37,28 @@ export interface ServiceRecord {
 export type ServiceRecordInsert = Omit<ServiceRecord, "id" | "user_id" | "created_at">;
 export type ServiceRecordUpdate = Partial<ServiceRecordInsert>;
 
+export interface Expense {
+  id: string;
+  user_id: string;
+  vehicle_id: string;
+  service_record_id: string | null;
+  category: string;
+  title: string;
+  amount: number;
+  expense_date: string;
+  mileage: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export type ExpenseInsert = Omit<Expense, "id" | "user_id" | "created_at">;
+export type ExpenseUpdate = Partial<ExpenseInsert>;
+
 export interface DashboardStats {
   vehicleCount: number;
   upcomingServicesCount: number;
   totalExpenses: number;
+  thisMonthExpenses?: number;
 }
 
 /** Generic typed API response wrapper */

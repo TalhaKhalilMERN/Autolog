@@ -18,6 +18,10 @@ export default async function DashboardPage() {
   const vehicleCount = statsResult.data?.vehicleCount ?? 0;
   const upcomingCount = statsResult.data?.upcomingServicesCount ?? 0;
   const totalExpenses = statsResult.data?.totalExpenses ?? 0;
+  const thisMonthExpenses = statsResult.data?.thisMonthExpenses ?? 0;
+
+  const formatCurrency = (n: number) =>
+    `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const stats = [
     {
@@ -40,12 +44,21 @@ export default async function DashboardPage() {
     },
     {
       label: "Total Expenses",
-      value: `$${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      value: formatCurrency(totalExpenses),
       icon: DollarSign,
       href: "/vehicles",
       cta: "View vehicles",
       color: "text-success",
       bg: "bg-success/10",
+    },
+    {
+      label: "This Month",
+      value: formatCurrency(thisMonthExpenses),
+      icon: DollarSign,
+      href: "/vehicles",
+      cta: "View vehicles",
+      color: "text-primary",
+      bg: "bg-primary/10",
     },
   ];
 
@@ -85,7 +98,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map(({ label, value, icon: Icon, href, cta, color, bg }) => (
           <div
             key={label}
