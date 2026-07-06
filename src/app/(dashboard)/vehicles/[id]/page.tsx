@@ -18,6 +18,7 @@ import {
   Wrench,
   Pencil,
   DollarSign,
+  ExternalLink,
 } from "lucide-react";
 import { DeleteVehicleButton } from "@/components/DeleteVehicleButton";
 import { DeleteServiceRecordButton } from "@/components/DeleteServiceRecordButton";
@@ -346,13 +347,20 @@ export default function VehicleDetailPage({
                       <DollarSign className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-sm font-semibold text-foreground">
                           {expense.title}
                         </h4>
                         <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
                           {expense.category}
                         </span>
+                        {/* Ownership badge for service-generated expenses */}
+                        {expense.service_record_id && (
+                          <span className="shrink-0 flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-3xs font-medium text-primary/80">
+                            <Wrench className="h-2.5 w-2.5" />
+                            Managed by Service History
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5" />
@@ -382,16 +390,30 @@ export default function VehicleDetailPage({
                   </p>
                 )}
 
-                {/* Actions */}
+                {/* Actions — branch on ownership */}
                 <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-3">
-                  <Link
-                    href={`/vehicles/${id}/expenses/${expense.id}/edit`}
-                    className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </Link>
-                  <DeleteExpenseButton expenseId={expense.id} title={expense.title} />
+                  {expense.service_record_id ? (
+                    // Service-owned expense: navigate to the owning service record
+                    <Link
+                      href={`/vehicles/${id}/service-records/${expense.service_record_id}/edit`}
+                      className="inline-flex items-center gap-1.5 rounded border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary transition-all hover:bg-primary/10 cursor-pointer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Edit Service Record
+                    </Link>
+                  ) : (
+                    // Manual expense: show standard edit + delete controls
+                    <>
+                      <Link
+                        href={`/vehicles/${id}/expenses/${expense.id}/edit`}
+                        className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Link>
+                      <DeleteExpenseButton expenseId={expense.id} title={expense.title} />
+                    </>
+                  )}
                 </div>
               </div>
             ))}

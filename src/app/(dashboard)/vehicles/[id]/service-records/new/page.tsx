@@ -18,11 +18,11 @@ const serviceRecordSchema = z.object({
   service_date: z.string().min(1, "Service date is required"),
   mileage: z.preprocess(
     (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
-    z.number({ required_error: "Mileage is required" }).int().min(0, "Mileage cannot be negative")
+    z.number().int().min(0, "Mileage cannot be negative")
   ),
   cost: z.preprocess(
     (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
-    z.number({ required_error: "Cost is required" }).min(0, "Cost cannot be negative")
+    z.number().min(0, "Cost cannot be negative")
   ),
   notes: z.string().max(500).optional(),
   next_service_date: z.string().optional(),

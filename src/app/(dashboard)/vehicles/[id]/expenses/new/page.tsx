@@ -19,11 +19,11 @@ const expenseSchema = z.object({
   expense_date: z.string().min(1, "Expense date is required"),
   mileage: z.preprocess(
     (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
-    z.number({ required_error: "Mileage is required" }).int().min(0, "Mileage cannot be negative")
+    z.number().int().min(0, "Mileage cannot be negative")
   ),
   amount: z.preprocess(
     (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
-    z.number({ required_error: "Amount is required" }).min(0, "Amount cannot be negative")
+    z.number().min(0, "Amount cannot be negative")
   ),
   notes: z.string().max(500).optional(),
 });
