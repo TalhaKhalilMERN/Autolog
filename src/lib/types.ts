@@ -61,6 +61,23 @@ export interface DashboardStats {
   thisMonthExpenses?: number;
 }
 
+export interface MaintenanceReminder {
+  id: string;
+  user_id: string;
+  vehicle_id: string;
+  title: string;
+  description: string | null;
+  reminder_type: string;
+  due_date: string | null;
+  due_odometer: number | null;
+  status: "pending" | "completed" | "cancelled";
+  created_at: string;
+  updated_at: string;
+}
+
+export type MaintenanceReminderInsert = Omit<MaintenanceReminder, "id" | "user_id" | "created_at" | "updated_at">;
+export type MaintenanceReminderUpdate = Partial<MaintenanceReminderInsert>;
+
 /** Generic typed API response wrapper */
 export type ApiResponse<T> =
   | { data: T; error: null }
