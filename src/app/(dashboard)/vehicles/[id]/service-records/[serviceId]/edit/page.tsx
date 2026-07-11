@@ -256,6 +256,7 @@ function EditServiceForm({
                 type="number"
                 min={0}
                 placeholder="e.g. 50000"
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass(!!errors.mileage || odoState === "lower")}
               />
               {/* Validation error (lower than stored vehicle odometer) */}
@@ -290,6 +291,7 @@ function EditServiceForm({
                 step="0.01"
                 min={0}
                 placeholder="e.g. 89.99"
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass(!!errors.cost)}
               />
             </Field>
@@ -337,6 +339,7 @@ function EditServiceForm({
                 type="number"
                 min={0}
                 placeholder="e.g. 60000"
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass(!!errors.next_service_mileage)}
               />
             </Field>
