@@ -50,6 +50,27 @@ export async function createServiceRecord(
   userId: string,
   payload: ServiceRecordInsert
 ): Promise<ApiResponse<ServiceRecord>> {
+  // ── Odometer guard ──────────────────────────────────────────────────────────
+  // Fetch the vehicle's current odometer before inserting.
+  const { data: vehicleRow, error: vehicleError } = await supabase
+    .from("vehicles")
+    .select("current_odometer")
+    .eq("id", payload.vehicle_id)
+    .single();
+
+  if (vehicleError) return { data: null, error: vehicleError.message };
+
+  const storedOdometer = vehicleRow?.current_odometer ?? 0;
+  const newMileage = Number(payload.mileage);
+
+  if (newMileage < storedOdometer) {
+    return {
+      data: null,
+      error: `Mileage cannot be less than the vehicle's current odometer (${storedOdometer.toLocaleString()} km).`,
+    };
+  }
+
+  // ── Insert service record ───────────────────────────────────────────────────
   const { data: record, error } = await supabase
     .from("service_records")
     .insert({ ...payload, user_id: userId })
@@ -60,7 +81,19 @@ export async function createServiceRecord(
 
   const serviceRecord = record as ServiceRecord;
 
-  // Automatically create a linked expense record
+  // ── Auto-update vehicle odometer if mileage advanced ───────────────────────
+  if (newMileage > storedOdometer) {
+    const { error: odoError } = await supabase
+      .from("vehicles")
+      .update({ current_odometer: newMileage })
+      .eq("id", payload.vehicle_id);
+
+    if (odoError) {
+      console.error("Failed to update vehicle odometer after service record creation:", odoError.message);
+    }
+  }
+
+  // ── Automatically create a linked expense record ────────────────────────────
   const { error: expenseError } = await supabase
     .from("expenses")
     .insert({
@@ -87,6 +120,106 @@ export async function updateServiceRecord(
   id: string,
   payload: ServiceRecordUpdate
 ): Promise<ApiResponse<ServiceRecord>> {
+  // ── Odometer guard (only when mileage is being updated) ─────────────────────
+  if (payload.mileage !== undefined) {
+    // We need the vehicle_id — fetch the existing service record first.
+    const { data: existing, error: fetchError } = await supabase
+      .from("service_records")
+      .select("vehicle_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) return { data: null, error: fetchError.message };
+
+    const { data: vehicleRow, error: vehicleError } = await supabase
+      .from("vehicles")
+      .select("current_odometer")
+      .eq("id", existing.vehicle_id)
+      .single();
+
+    if (vehicleError) return { data: null, error: vehicleError.message };
+
+    const storedOdometer = vehicleRow?.current_odometer ?? 0;
+    const newMileage = Number(payload.mileage);
+
+    if (newMileage < storedOdometer) {
+      return {
+        data: null,
+        error: `Mileage cannot be less than the vehicle's current odometer (${storedOdometer.toLocaleString()} km).`,
+      };
+    }
+
+    // ── Update the record ───────────────────────────────────────────────────────
+    const { data: record, error } = await supabase
+      .from("service_records")
+      .update(payload)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) return { data: null, error: error.message };
+
+    const serviceRecord = record as ServiceRecord;
+
+    // ── Auto-update vehicle odometer if mileage advanced ─────────────────────
+    if (newMileage > storedOdometer) {
+      const { error: odoError } = await supabase
+        .from("vehicles")
+        .update({ current_odometer: newMileage })
+        .eq("id", existing.vehicle_id);
+
+      if (odoError) {
+        console.error("Failed to update vehicle odometer after service record update:", odoError.message);
+      }
+    }
+
+    // ── Sync linked expense ─────────────────────────────────────────────────────
+    const { data: existingExpenses, error: findError } = await supabase
+      .from("expenses")
+      .select("id")
+      .eq("service_record_id", id);
+
+    if (!findError && existingExpenses && existingExpenses.length > 0) {
+      const expenseId = existingExpenses[0].id;
+      const { error: expenseError } = await supabase
+        .from("expenses")
+        .update({
+          vehicle_id: serviceRecord.vehicle_id,
+          title: serviceRecord.service_type,
+          amount: serviceRecord.cost,
+          expense_date: serviceRecord.service_date,
+          mileage: serviceRecord.mileage,
+          notes: serviceRecord.notes,
+        })
+        .eq("id", expenseId);
+
+      if (expenseError) {
+        console.error("Failed to sync updated expense for service record:", expenseError.message);
+      }
+    } else {
+      const { error: expenseError } = await supabase
+        .from("expenses")
+        .insert({
+          user_id: serviceRecord.user_id,
+          vehicle_id: serviceRecord.vehicle_id,
+          service_record_id: serviceRecord.id,
+          category: "Service",
+          title: serviceRecord.service_type,
+          amount: serviceRecord.cost,
+          expense_date: serviceRecord.service_date,
+          mileage: serviceRecord.mileage,
+          notes: serviceRecord.notes,
+        });
+
+      if (expenseError) {
+        console.error("Failed to create missing expense for updated service record:", expenseError.message);
+      }
+    }
+
+    return { data: serviceRecord, error: null };
+  }
+
+  // ── Mileage not changing — normal update path ───────────────────────────────
   const { data: record, error } = await supabase
     .from("service_records")
     .update(payload)

@@ -66,6 +66,8 @@ export function useCreateServiceRecord() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service-records"] });
+      // Vehicle odometer may have been updated server-side — refresh vehicle cache.
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
     },
   });
 }
@@ -94,6 +96,8 @@ export function useUpdateServiceRecord() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["service-records"] });
       queryClient.invalidateQueries({ queryKey: ["service-record", variables.id] });
+      // Vehicle odometer may have been updated server-side — refresh vehicle cache.
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
     },
   });
 }
