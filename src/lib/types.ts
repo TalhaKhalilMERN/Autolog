@@ -82,3 +82,17 @@ export type MaintenanceReminderUpdate = Partial<MaintenanceReminderInsert>;
 export type ApiResponse<T> =
   | { data: T; error: null }
   | { data: null; error: string };
+
+export interface UserSettings {
+  user_id: string;
+  email_notifications: boolean;
+  notification_days_before: number;
+  notify_by_odometer: boolean;
+  odometer_threshold: number;
+  notification_frequency: "once" | "daily";
+  created_at: string;
+  updated_at: string;
+}
+
+export type UserSettingsUpdate = Partial<Omit<UserSettings, "user_id" | "created_at" | "updated_at">>;
+
