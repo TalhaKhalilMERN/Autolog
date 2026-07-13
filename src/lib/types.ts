@@ -96,3 +96,17 @@ export interface UserSettings {
 
 export type UserSettingsUpdate = Partial<Omit<UserSettings, "user_id" | "created_at" | "updated_at">>;
 
+export interface UserProfile {
+  email: string;
+  created_at: string;
+  full_name: string;
+  country: string | null;
+  timezone: string | null;
+}
+
+export type UserProfileUpdate = {
+  full_name: string;
+  country?: string | null;
+  timezone?: string | null;
+};
+
