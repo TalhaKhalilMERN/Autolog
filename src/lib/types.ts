@@ -56,9 +56,12 @@ export type ExpenseUpdate = Partial<ExpenseInsert>;
 
 export interface DashboardStats {
   vehicleCount: number;
-  upcomingServicesCount: number;
+  serviceRecordCount: number;
   totalExpenses: number;
-  thisMonthExpenses?: number;
+  thisMonthExpenses: number;
+  activeRemindersCount: number;
+  overdueRemindersCount: number;
+  upcomingRemindersCount: number; // next 7 days
 }
 
 export interface MaintenanceReminder {

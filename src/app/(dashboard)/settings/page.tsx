@@ -3,15 +3,19 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, Bell, User, Shield, Check, AlertCircle, Camera,
-  Eye, EyeOff, LogOut, Trash2, KeyRound, Mail, MonitorCheck,
+  Eye, EyeOff, LogOut, Trash2, KeyRound, MonitorCheck, X, TriangleAlert,
 } from "lucide-react";
 import { useUserSettings, useUpdateUserSettings } from "@/features/settings/hooks/use-user-settings";
 import { useProfile, useUpdateProfile } from "@/features/settings/hooks/use-profile";
-import { useSecuritySession, useChangePassword } from "@/features/settings/hooks/use-security";
+import {
+  useSecuritySession,
+  useChangePassword,
+  useDeleteAccount,
+} from "@/features/settings/hooks/use-security";
 import { createClient } from "@/lib/supabase/client";
 import type { UserSettingsUpdate, UserProfileUpdate } from "@/lib/types";
 
@@ -96,7 +100,6 @@ const TIMEZONES = [
   { value: "Australia/Sydney", label: "Sydney (AEDT)" },
 ];
 
-/* ─── Options constants (notifications) ─── */
 const TIMING_OPTIONS = [
   { value: 0, label: "On due date" },
   { value: 1, label: "1 day before" },
@@ -193,25 +196,164 @@ function ErrorBanner({ message }: { message: string }) {
 }
 
 /* ─────────────────────────────────────────── */
+/* Delete Account Confirmation Modal           */
+/* ─────────────────────────────────────────── */
+function DeleteAccountModal({
+  onClose,
+  onConfirm,
+  isDeleting,
+}: {
+  onClose: () => void;
+  onConfirm: () => void;
+  isDeleting: boolean;
+}) {
+  const [confirmText, setConfirmText] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isEnabled = confirmText === "DELETE" && !isDeleting;
+
+  // Focus the input and trap keyboard escape
+  useEffect(() => {
+    inputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isDeleting) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose, isDeleting]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={() => !isDeleting && onClose()}
+      />
+
+      {/* Dialog */}
+      <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-200 rounded-2xl border border-destructive/40 bg-card p-6 shadow-2xl">
+        {/* Close button */}
+        {!isDeleting && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-4 top-4 rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Icon + Title */}
+        <div className="flex items-start gap-4">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-destructive/15">
+            <TriangleAlert className="h-5 w-5 text-destructive" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Delete Account</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This action is <span className="font-semibold text-destructive">permanent and irreversible</span>.
+            </p>
+          </div>
+        </div>
+
+        {/* Warning list */}
+        <div className="mt-5 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
+          <p className="text-xs font-semibold text-destructive mb-2">
+            The following data will be permanently deleted:
+          </p>
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            <li>• All vehicles and their details</li>
+            <li>• All service records</li>
+            <li>• All expenses</li>
+            <li>• All maintenance reminders</li>
+            <li>• All notification preferences and settings</li>
+            <li>• Your account and profile</li>
+          </ul>
+        </div>
+
+        {/* Confirmation input */}
+        <div className="mt-5 space-y-2">
+          <label className="text-sm text-foreground">
+            To confirm, type{" "}
+            <span className="font-mono font-bold tracking-widest text-destructive">DELETE</span>{" "}
+            in the field below:
+          </label>
+          <input
+            ref={inputRef}
+            type="text"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            disabled={isDeleting}
+            placeholder="Type DELETE to confirm"
+            autoComplete="off"
+            spellCheck={false}
+            className={`w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm font-mono tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal outline-none transition-all focus:ring-2 disabled:opacity-50 ${
+              confirmText && confirmText !== "DELETE"
+                ? "border-destructive focus:ring-destructive/30 focus:border-destructive"
+                : "border-border focus:ring-primary/30 focus:border-primary"
+            }`}
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="mt-5 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isDeleting}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-accent disabled:opacity-50 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!isEnabled}
+            className="flex items-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Deleting…
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" />
+                Permanently Delete
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────── */
 /* Security Tab                                */
 /* ─────────────────────────────────────────── */
 function SecurityTab() {
   const router = useRouter();
   const { data: session, isLoading: sessionLoading } = useSecuritySession();
   const changePasswordMutation = useChangePassword();
+  const deleteAccountMutation = useDeleteAccount();
 
   /* Password visibility toggles */
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
 
-  /* Feedback state */
+  /* Password form feedback */
   const [pwSuccess, setPwSuccess] = useState<string | null>(null);
   const [pwError, setPwError] = useState<string | null>(null);
 
   /* Sign-out confirmation */
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  /* Delete account modal */
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const {
     register,
@@ -224,6 +366,7 @@ function SecurityTab() {
   });
 
   const isSavingPw = changePasswordMutation.isPending;
+  const isDeleting = deleteAccountMutation.isPending;
 
   async function onChangePassword(data: ChangePasswordFormValues) {
     setPwSuccess(null);
@@ -253,336 +396,309 @@ function SecurityTab() {
     }
   }
 
+  async function handleDeleteAccount() {
+    setDeleteError(null);
+    try {
+      await deleteAccountMutation.mutateAsync();
+
+      // Sign out on the client to clear the session cookie
+      const supabase = createClient();
+      await supabase.auth.signOut();
+
+      // Redirect to the landing page
+      router.push("/");
+    } catch (err: any) {
+      setDeleteError(err.message || "Failed to delete account. Please try again.");
+      setDeleteModalOpen(false);
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <>
+      {/* Delete confirmation modal */}
+      {deleteModalOpen && (
+        <DeleteAccountModal
+          onClose={() => !isDeleting && setDeleteModalOpen(false)}
+          onConfirm={handleDeleteAccount}
+          isDeleting={isDeleting}
+        />
+      )}
 
-      {/* ── 1. Change Password ── */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-elevated sm:p-8 space-y-5">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10">
-            <KeyRound className="h-4 w-4 text-primary" />
-          </span>
-          <div>
-            <h3 className="text-base font-semibold text-foreground">Change Password</h3>
-            <p className="text-xs text-muted-foreground">Update your account password.</p>
-          </div>
-        </div>
+      <div className="space-y-6">
 
-        <hr className="border-border/60" />
-
-        {pwSuccess && <SuccessBanner message={pwSuccess} />}
-        {pwError && <ErrorBanner message={pwError} />}
-
-        <form onSubmit={handleSubmit(onChangePassword)} noValidate className="space-y-4">
-          {/* Current Password */}
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel label="Current Password" />
-            {/* NOTE: Supabase does not verify the current password before updating.
-                This field is present for UX purposes only. Proper verification would
-                require re-authentication via supabase.auth.signInWithPassword before
-                calling updateUser. See service layer TODO. */}
-            <div className="relative">
-              <input
-                {...register("current_password")}
-                type={showCurrentPw ? "text" : "password"}
-                placeholder="Enter current password"
-                disabled={isSavingPw}
-                autoComplete="current-password"
-                className={`${inputClass(!!pwErrors.current_password)} pr-10`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowCurrentPw((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                aria-label={showCurrentPw ? "Hide password" : "Show password"}
-              >
-                {showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {pwErrors.current_password && (
-              <p className="text-xs text-destructive" role="alert">{pwErrors.current_password.message}</p>
-            )}
-          </div>
-
-          {/* New Password */}
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel label="New Password" />
-            <div className="relative">
-              <input
-                {...register("new_password")}
-                type={showNewPw ? "text" : "password"}
-                placeholder="At least 8 characters"
-                disabled={isSavingPw}
-                autoComplete="new-password"
-                className={`${inputClass(!!pwErrors.new_password)} pr-10`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowNewPw((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                aria-label={showNewPw ? "Hide password" : "Show password"}
-              >
-                {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {pwErrors.new_password ? (
-              <p className="text-xs text-destructive" role="alert">{pwErrors.new_password.message}</p>
-            ) : (
-              <ul className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-                <li>• 8–72 characters</li>
-                <li>• 1 uppercase letter</li>
-                <li>• 1 number</li>
-              </ul>
-            )}
-          </div>
-
-          {/* Confirm Password */}
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel label="Confirm New Password" />
-            <div className="relative">
-              <input
-                {...register("confirm_password")}
-                type={showConfirmPw ? "text" : "password"}
-                placeholder="Re-enter new password"
-                disabled={isSavingPw}
-                autoComplete="new-password"
-                className={`${inputClass(!!pwErrors.confirm_password)} pr-10`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPw((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                aria-label={showConfirmPw ? "Hide password" : "Show password"}
-              >
-                {showConfirmPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {pwErrors.confirm_password && (
-              <p className="text-xs text-destructive" role="alert">{pwErrors.confirm_password.message}</p>
-            )}
-          </div>
-
-          <div className="flex justify-end pt-1">
-            <button
-              type="submit"
-              disabled={isSavingPw}
-              className="flex items-center gap-2 rounded-lg bg-gradient-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px disabled:pointer-events-none disabled:opacity-60 cursor-pointer"
-            >
-              {isSavingPw ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Updating…
-                </>
-              ) : (
-                "Update Password"
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* ── 2. Email Address ── */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-elevated sm:p-8 space-y-5">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10">
-            <Mail className="h-4 w-4 text-primary" />
-          </span>
-          <div>
-            <h3 className="text-base font-semibold text-foreground">Email Address</h3>
-            <p className="text-xs text-muted-foreground">
-              Your login email and verification status.
-            </p>
-          </div>
-        </div>
-
-        <hr className="border-border/60" />
-
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">
-              {sessionLoading ? (
-                <span className="inline-block h-4 w-48 animate-pulse rounded bg-muted" />
-              ) : (
-                session?.email || "—"
-              )}
-            </p>
-            <div className="flex items-center gap-1.5">
-              {!sessionLoading && session?.email_confirmed_at ? (
-                <>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  <span className="text-xs text-emerald-500">Verified</span>
-                </>
-              ) : (
-                <>
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  <span className="text-xs text-amber-500">Not verified</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              disabled
-              className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground cursor-not-allowed opacity-60"
-            >
-              Change Email
-            </button>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-              Coming Soon
+        {/* ── 1. Change Password ── */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-elevated sm:p-8 space-y-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10">
+              <KeyRound className="h-4 w-4 text-primary" />
             </span>
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Change Password</h3>
+              <p className="text-xs text-muted-foreground">Update your account password.</p>
+            </div>
           </div>
+
+          <hr className="border-border/60" />
+
+          {pwSuccess && <SuccessBanner message={pwSuccess} />}
+          {pwError && <ErrorBanner message={pwError} />}
+
+          <form onSubmit={handleSubmit(onChangePassword)} noValidate className="space-y-4">
+            {/* Current Password */}
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel label="Current Password" />
+              {/* NOTE: Supabase does not verify the current password before updating.
+                  This field is present for UX purposes only. Proper verification would
+                  require re-authentication via supabase.auth.signInWithPassword before
+                  calling updateUser. See service layer TODO in security.ts. */}
+              <div className="relative">
+                <input
+                  {...register("current_password")}
+                  type={showCurrentPw ? "text" : "password"}
+                  placeholder="Enter current password"
+                  disabled={isSavingPw}
+                  autoComplete="current-password"
+                  className={`${inputClass(!!pwErrors.current_password)} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPw((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  aria-label={showCurrentPw ? "Hide password" : "Show password"}
+                >
+                  {showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {pwErrors.current_password && (
+                <p className="text-xs text-destructive" role="alert">{pwErrors.current_password.message}</p>
+              )}
+            </div>
+
+            {/* New Password */}
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel label="New Password" />
+              <div className="relative">
+                <input
+                  {...register("new_password")}
+                  type={showNewPw ? "text" : "password"}
+                  placeholder="At least 8 characters"
+                  disabled={isSavingPw}
+                  autoComplete="new-password"
+                  className={`${inputClass(!!pwErrors.new_password)} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPw((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  aria-label={showNewPw ? "Hide password" : "Show password"}
+                >
+                  {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {pwErrors.new_password ? (
+                <p className="text-xs text-destructive" role="alert">{pwErrors.new_password.message}</p>
+              ) : (
+                <ul className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                  <li>• 8–72 characters</li>
+                  <li>• 1 uppercase letter</li>
+                  <li>• 1 number</li>
+                </ul>
+              )}
+            </div>
+
+            {/* Confirm Password */}
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel label="Confirm New Password" />
+              <div className="relative">
+                <input
+                  {...register("confirm_password")}
+                  type={showConfirmPw ? "text" : "password"}
+                  placeholder="Re-enter new password"
+                  disabled={isSavingPw}
+                  autoComplete="new-password"
+                  className={`${inputClass(!!pwErrors.confirm_password)} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPw((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  aria-label={showConfirmPw ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {pwErrors.confirm_password && (
+                <p className="text-xs text-destructive" role="alert">{pwErrors.confirm_password.message}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                disabled={isSavingPw}
+                className="flex items-center gap-2 rounded-lg bg-gradient-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px disabled:pointer-events-none disabled:opacity-60 cursor-pointer"
+              >
+                {isSavingPw ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Updating…
+                  </>
+                ) : (
+                  "Update Password"
+                )}
+              </button>
+            </div>
+          </form>
         </div>
 
-        <p className="text-xs text-muted-foreground rounded-lg bg-muted/40 px-3 py-2 border border-border/40">
-          Email change functionality is coming soon. Contact support if you need to update your email address.
-        </p>
-      </div>
-
-      {/* ── 3. Active Session ── */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-elevated sm:p-8 space-y-5">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10">
-            <MonitorCheck className="h-4 w-4 text-primary" />
-          </span>
-          <div>
-            <h3 className="text-base font-semibold text-foreground">Active Session</h3>
-            <p className="text-xs text-muted-foreground">
-              Your current login session details.
-            </p>
+        {/* ── 2. Active Session ── */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-elevated sm:p-8 space-y-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10">
+              <MonitorCheck className="h-4 w-4 text-primary" />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Active Session</h3>
+              <p className="text-xs text-muted-foreground">Your current login session details.</p>
+            </div>
           </div>
-        </div>
 
-        <hr className="border-border/60" />
+          <hr className="border-border/60" />
 
-        <dl className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg bg-muted/30 border border-border/40 px-4 py-3">
-            <dt className="text-xs font-medium text-muted-foreground">Session Status</dt>
-            <dd className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-emerald-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Active
-            </dd>
-          </div>
-          <div className="rounded-lg bg-muted/30 border border-border/40 px-4 py-3">
-            <dt className="text-xs font-medium text-muted-foreground">Last Sign-in</dt>
-            <dd className="mt-1 text-sm font-medium text-foreground">
-              {sessionLoading ? (
-                <span className="inline-block h-4 w-32 animate-pulse rounded bg-muted" />
-              ) : (
-                formatDateTime(session?.last_sign_in_at ?? null)
-              )}
-            </dd>
-          </div>
-          <div className="rounded-lg bg-muted/30 border border-border/40 px-4 py-3">
-            <dt className="text-xs font-medium text-muted-foreground">Auth Provider</dt>
-            <dd className="mt-1 text-sm font-medium text-foreground capitalize">
-              {sessionLoading ? (
-                <span className="inline-block h-4 w-16 animate-pulse rounded bg-muted" />
-              ) : (
-                session?.provider || "Email"
-              )}
-            </dd>
-          </div>
-        </dl>
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-muted/30 border border-border/40 px-4 py-3">
+              <dt className="text-xs font-medium text-muted-foreground">Session Status</dt>
+              <dd className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-emerald-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Active
+              </dd>
+            </div>
+            <div className="rounded-lg bg-muted/30 border border-border/40 px-4 py-3">
+              <dt className="text-xs font-medium text-muted-foreground">Last Sign-in</dt>
+              <dd className="mt-1 text-sm font-medium text-foreground">
+                {sessionLoading ? (
+                  <span className="inline-block h-4 w-32 animate-pulse rounded bg-muted" />
+                ) : (
+                  formatDateTime(session?.last_sign_in_at ?? null)
+                )}
+              </dd>
+            </div>
+            <div className="rounded-lg bg-muted/30 border border-border/40 px-4 py-3">
+              <dt className="text-xs font-medium text-muted-foreground">Auth Provider</dt>
+              <dd className="mt-1 text-sm font-medium text-foreground capitalize">
+                {sessionLoading ? (
+                  <span className="inline-block h-4 w-16 animate-pulse rounded bg-muted" />
+                ) : (
+                  session?.provider || "Email"
+                )}
+              </dd>
+            </div>
+          </dl>
 
-        <p className="text-xs text-muted-foreground">
-          Advanced session management (active devices, force sign-out on all devices) will be added in a future update.
-        </p>
-      </div>
-
-      {/* ── 4. Danger Zone ── */}
-      <div className="rounded-2xl border border-destructive/40 bg-card p-6 shadow-elevated sm:p-8 space-y-5">
-        <div>
-          <h3 className="text-base font-semibold text-destructive">Danger Zone</h3>
           <p className="text-xs text-muted-foreground">
-            Irreversible or destructive actions. Proceed with caution.
+            Advanced session management (active devices, force sign-out on all devices) will be added in a future update.
           </p>
         </div>
 
-        <hr className="border-destructive/20" />
-
-        {/* Sign Out */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        {/* ── 3. Danger Zone ── */}
+        <div className="rounded-2xl border border-destructive/40 bg-card p-6 shadow-elevated sm:p-8 space-y-5">
           <div>
-            <p className="text-sm font-semibold text-foreground">Sign Out</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              End your current session and return to the login page.
+            <h3 className="text-base font-semibold text-destructive">Danger Zone</h3>
+            <p className="text-xs text-muted-foreground">
+              Irreversible or destructive actions. Proceed with caution.
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            {!confirmSignOut ? (
-              <button
-                type="button"
-                onClick={() => setConfirmSignOut(true)}
-                className="flex items-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive transition-all hover:bg-destructive/10 cursor-pointer"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 animate-in fade-in duration-150">
-                <span className="text-xs text-muted-foreground">Are you sure?</span>
-                <button
-                  type="button"
-                  onClick={() => setConfirmSignOut(false)}
-                  disabled={signingOut}
-                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-accent disabled:opacity-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  disabled={signingOut}
-                  className="flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground transition-all hover:opacity-90 disabled:opacity-60 cursor-pointer"
-                >
-                  {signingOut ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <LogOut className="h-3 w-3" />
-                  )}
-                  Confirm Sign Out
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+          <hr className="border-destructive/20" />
 
-        <hr className="border-destructive/20" />
-
-        {/* Delete Account */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-foreground">Delete Account</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Permanently delete your account and all associated data.
-            </p>
-            <div className="mt-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2">
-              <p className="text-xs text-destructive/80 leading-relaxed">
-                <span className="font-semibold">Warning:</span> This action is irreversible. Deleting your account will
-                permanently remove all your vehicles, service records, expenses, maintenance reminders, and settings.
-                There is no way to recover your data after deletion.
+          {/* Sign Out */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Sign Out</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                End your current session and return to the login page.
               </p>
+            </div>
+
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              {!confirmSignOut ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmSignOut(true)}
+                  className="flex items-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive transition-all hover:bg-destructive/10 cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                  <span className="text-xs text-muted-foreground">Are you sure?</span>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmSignOut(false)}
+                    disabled={signingOut}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-accent disabled:opacity-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    disabled={signingOut}
+                    className="flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground transition-all hover:opacity-90 disabled:opacity-60 cursor-pointer"
+                  >
+                    {signingOut ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <LogOut className="h-3 w-3" />
+                    )}
+                    Confirm Sign Out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="shrink-0">
-            <button
-              type="button"
-              disabled
-              title="Coming soon"
-              className="flex items-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive/50 cursor-not-allowed opacity-60"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete Account
-            </button>
-            <p className="mt-1.5 text-right text-[11px] text-muted-foreground">Coming soon</p>
+          <hr className="border-destructive/20" />
+
+          {/* Delete Account */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Delete Account</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Permanently delete your account and all associated data.
+              </p>
+              <div className="mt-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2">
+                <p className="text-xs text-destructive/80 leading-relaxed">
+                  <span className="font-semibold">Warning:</span> This will permanently remove all
+                  vehicles, service records, expenses, maintenance reminders, and settings.
+                  There is no way to recover this data.
+                </p>
+              </div>
+              {deleteError && (
+                <div className="mt-2">
+                  <ErrorBanner message={deleteError} />
+                </div>
+              )}
+            </div>
+
+            <div className="shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteModalOpen(true);
+                }}
+                className="flex items-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive transition-all hover:bg-destructive/10 cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Account
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -620,13 +736,11 @@ function ProfileTab() {
   async function onSubmit(data: ProfileFormValues) {
     setSuccessMessage(null);
     setErrorMessage(null);
-
     const payload: UserProfileUpdate = {
       full_name: data.full_name.trim(),
       country: data.country?.trim() || null,
       timezone: data.timezone?.trim() || null,
     };
-
     try {
       await updateProfileMutation.mutateAsync(payload);
       setSuccessMessage("Profile updated successfully.");
@@ -663,7 +777,6 @@ function ProfileTab() {
         </p>
 
         <div className="mt-6 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-          {/* Avatar */}
           <div className="relative shrink-0">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-primary shadow-glow ring-4 ring-background">
               <span className="text-xl font-bold tracking-wide text-primary-foreground select-none">
@@ -678,28 +791,19 @@ function ProfileTab() {
             >
               <Camera className="h-3 w-3" />
               <span>Upload</span>
-              <span className="rounded-full bg-muted px-1 py-0.5 text-[9px] uppercase tracking-wider">
-                Soon
-              </span>
+              <span className="rounded-full bg-muted px-1 py-0.5 text-[9px] uppercase tracking-wider">Soon</span>
             </button>
           </div>
 
-          {/* Profile Info */}
           <div className="flex flex-col items-center gap-1 text-center sm:items-start sm:text-left">
             <p className="text-lg font-semibold text-foreground">{profile?.full_name || "—"}</p>
             <p className="text-sm text-muted-foreground">{profile?.email}</p>
             <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:justify-start">
               {profile?.country && (
-                <span>
-                  <span className="font-medium text-foreground">Country:</span>{" "}
-                  {profile.country}
-                </span>
+                <span><span className="font-medium text-foreground">Country:</span> {profile.country}</span>
               )}
               {profile?.timezone && (
-                <span>
-                  <span className="font-medium text-foreground">Timezone:</span>{" "}
-                  {profile.timezone}
-                </span>
+                <span><span className="font-medium text-foreground">Timezone:</span> {profile.timezone}</span>
               )}
               <span>
                 <span className="font-medium text-foreground">Member since:</span>{" "}
@@ -710,17 +814,15 @@ function ProfileTab() {
         </div>
       </div>
 
-      {/* Editable Form */}
+      {/* Edit Form */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-elevated sm:p-8 space-y-5">
         <div>
           <h3 className="text-base font-semibold text-foreground">Edit Profile</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">Update your personal information below.</p>
         </div>
-
         <hr className="border-border/60" />
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
-          {/* Full Name */}
           <div className="flex flex-col gap-1.5">
             <FieldLabel label="Full Name" />
             <input
@@ -735,7 +837,6 @@ function ProfileTab() {
             )}
           </div>
 
-          {/* Read-only Email */}
           <div className="flex flex-col gap-1.5">
             <FieldLabel label="Email Address" />
             <input
@@ -750,7 +851,6 @@ function ProfileTab() {
             </p>
           </div>
 
-          {/* Read-only Member Since */}
           <div className="flex flex-col gap-1.5">
             <FieldLabel label="Member Since" />
             <input
@@ -762,7 +862,6 @@ function ProfileTab() {
             />
           </div>
 
-          {/* Country + Timezone */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <FieldLabel label="Country" optional />
@@ -789,9 +888,6 @@ function ProfileTab() {
                   <option key={tz.value} value={tz.value}>{tz.label}</option>
                 ))}
               </select>
-              {errors.timezone && (
-                <p className="text-xs text-destructive" role="alert">{errors.timezone.message}</p>
-              )}
             </div>
           </div>
 
@@ -823,7 +919,6 @@ function ProfileTab() {
 function NotificationsTab() {
   const { data: settings, isLoading, error } = useUserSettings();
   const updateSettingsMutation = useUpdateUserSettings();
-
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -858,7 +953,6 @@ function NotificationsTab() {
   async function onSubmit(data: SettingsFormValues) {
     setSuccessMessage(null);
     setErrorMessage(null);
-
     const payload: UserSettingsUpdate = {
       email_notifications: data.email_notifications,
       notification_days_before: Number(data.notification_days_before),
@@ -866,7 +960,6 @@ function NotificationsTab() {
       odometer_threshold: Number(data.odometer_threshold),
       notification_frequency: data.notification_frequency,
     };
-
     try {
       await updateSettingsMutation.mutateAsync(payload);
       setSuccessMessage("Settings saved successfully.");
@@ -927,7 +1020,6 @@ function NotificationsTab() {
                 <p className="text-xs text-muted-foreground">Enable email alerts for upcoming schedules or dates.</p>
               </div>
             </div>
-
             <div className="pl-7 grid gap-3 max-w-md">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-muted-foreground">Reminder Timing</label>
@@ -969,7 +1061,6 @@ function NotificationsTab() {
                 <p className="text-xs text-muted-foreground">Enable alerts based on remaining kilometers.</p>
               </div>
             </div>
-
             <div className="pl-7 grid gap-3 max-w-md">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-muted-foreground">Notify when remaining mileage is:</label>
@@ -999,26 +1090,24 @@ function NotificationsTab() {
               <p className="text-xs text-muted-foreground">Select how often alerts should repeat until resolved.</p>
             </div>
             <div className="grid gap-3 max-w-md">
-              <div className="flex flex-col gap-1.5">
-                <select
-                  disabled={isSaving}
-                  onWheel={disableScrollWheel}
-                  {...register("notification_frequency")}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:opacity-50"
-                >
-                  {FREQUENCY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                {errors.notification_frequency && (
-                  <p className="text-xs text-destructive" role="alert">{errors.notification_frequency.message}</p>
-                )}
-              </div>
+              <select
+                disabled={isSaving}
+                onWheel={disableScrollWheel}
+                {...register("notification_frequency")}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:opacity-50"
+              >
+                {FREQUENCY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              {errors.notification_frequency && (
+                <p className="text-xs text-destructive" role="alert">{errors.notification_frequency.message}</p>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end">
           <button
             type="submit"
             disabled={isSaving || !isDirty}
@@ -1073,11 +1162,6 @@ export default function SettingsPage() {
               >
                 <Icon className={`h-4 w-4 shrink-0 ${active ? "text-primary" : ""}`} />
                 {tab.label}
-                {tab.disabled && (
-                  <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground uppercase tracking-wider">
-                    Soon
-                  </span>
-                )}
               </button>
             );
           })}
