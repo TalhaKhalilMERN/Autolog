@@ -71,6 +71,7 @@ export function useCreateReminder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }
@@ -104,6 +105,7 @@ export function useUpdateReminder() {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       queryClient.invalidateQueries({ queryKey: ["reminder", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }
@@ -130,6 +132,7 @@ export function useDeleteReminder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }

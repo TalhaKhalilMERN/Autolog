@@ -33,6 +33,8 @@ export function useSecuritySession() {
  * POST /api/security/change-password
  */
 export function useChangePassword() {
+  const queryClient = useQueryClient();
+
   return useMutation<{ success: boolean }, Error, { new_password: string }>({
     mutationFn: async (payload) => {
       const res = await fetch("/api/security/change-password", {
@@ -45,6 +47,9 @@ export function useChangePassword() {
         throw new Error(err.error || "Failed to change password");
       }
       return (await res.json()).data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }

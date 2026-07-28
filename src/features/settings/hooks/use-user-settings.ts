@@ -43,6 +43,7 @@ export function useUpdateUserSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }

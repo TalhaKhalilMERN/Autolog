@@ -63,6 +63,7 @@ export function useCreateVehicle() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }
@@ -91,6 +92,7 @@ export function useUpdateVehicle() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       queryClient.invalidateQueries({ queryKey: ["vehicle", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }
@@ -116,6 +118,7 @@ export function useDeleteVehicle() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }

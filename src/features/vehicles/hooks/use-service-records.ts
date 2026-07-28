@@ -66,8 +66,8 @@ export function useCreateServiceRecord() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service-records"] });
-      // Vehicle odometer may have been updated server-side — refresh vehicle cache.
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }
@@ -95,9 +95,9 @@ export function useUpdateServiceRecord() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["service-records"] });
-      queryClient.invalidateQueries({ queryKey: ["service-record", variables.id] });
-      // Vehicle odometer may have been updated server-side — refresh vehicle cache.
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+      queryClient.invalidateQueries({ queryKey: ["service-record", variables.id] });
     },
   });
 }
@@ -123,6 +123,7 @@ export function useDeleteServiceRecord() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service-records"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
     },
   });
 }
