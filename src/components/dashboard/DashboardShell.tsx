@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  Activity,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
@@ -20,6 +21,7 @@ import type { User } from "@supabase/supabase-js";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/vehicles", label: "Vehicles", icon: Truck },
+  { href: "/activities", label: "Activity Log", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -110,6 +112,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/vehicles": "My Vehicles",
   "/vehicles/new": "Add Vehicle",
+  "/activities": "Activity Log",
+  "/activity": "Activity Log",
   "/settings": "Settings",
 };
 

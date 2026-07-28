@@ -17,6 +17,9 @@ import {
   BarChart3,
   Fuel,
   Zap,
+  Settings,
+  ShieldCheck,
+  User,
 } from "lucide-react";
 import { useVehicles } from "@/features/vehicles/hooks/vehicles";
 import { useExpenses } from "@/features/vehicles/hooks/use-expenses";
@@ -24,7 +27,8 @@ import { useServiceRecords } from "@/features/vehicles/hooks/use-service-records
 import { useReminders } from "@/features/vehicles/hooks/use-reminders";
 import { useDashboardStats } from "@/features/vehicles/hooks/use-dashboard-stats";
 import { useProfile } from "@/features/settings/hooks/use-profile";
-import type { Vehicle, Expense, ServiceRecord, MaintenanceReminder } from "@/lib/types";
+import { useLatestActivities } from "@/features/activities/hooks/use-activities";
+import type { Vehicle, Expense, MaintenanceReminder, ActivityLog, ActivityEntityType } from "@/lib/types";
 
 /* ─── Formatting helpers ─── */
 const fmt = {
@@ -51,6 +55,21 @@ function daysDiff(iso: string): number {
   due.setHours(0, 0, 0, 0);
   now.setHours(0, 0, 0, 0);
   return Math.round((due.getTime() - now.getTime()) / 86400000);
+}
+
+function formatRelativeTime(isoString: string): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (seconds < 60) return "Just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /* ─── Skeleton ─── */
@@ -192,70 +211,26 @@ function KpiCard({
   );
 }
 
-/* ─── Activity Feed ─── */
-type ActivityItem = {
-  id: string;
-  type: "service" | "expense" | "reminder";
-  title: string;
-  vehicleId: string;
-  date: string;
-  amount?: number;
-};
-
-function buildActivity(
-  services: ServiceRecord[],
-  expenses: Expense[],
-  reminders: MaintenanceReminder[],
-  vehicles: Vehicle[]
-): ActivityItem[] {
-  const vehicleMap = Object.fromEntries(vehicles.map((v) => [v.id, v]));
-
-  const items: ActivityItem[] = [
-    ...services.map((s) => ({
-      id: s.id,
-      type: "service" as const,
-      title: s.service_type,
-      vehicleId: s.vehicle_id,
-      date: s.service_date,
-      amount: s.cost,
-    })),
-    ...expenses.map((e) => ({
-      id: e.id,
-      type: "expense" as const,
-      title: e.title,
-      vehicleId: e.vehicle_id,
-      date: e.expense_date,
-      amount: e.amount,
-    })),
-    ...reminders
-      .filter((r) => r.due_date)
-      .map((r) => ({
-        id: r.id,
-        type: "reminder" as const,
-        title: r.title,
-        vehicleId: r.vehicle_id,
-        date: r.due_date!,
-      })),
-  ];
-
-  return items
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 8)
-    .map((item) => ({ ...item }));
-}
-
-function ActivityIcon({ type }: { type: "service" | "expense" | "reminder" }) {
-  const map = {
-    service: { icon: Wrench, cls: "bg-primary/10 text-primary" },
-    expense: { icon: DollarSign, cls: "bg-emerald-500/10 text-emerald-500" },
-    reminder: { icon: Bell, cls: "bg-amber-500/10 text-amber-500" },
-  };
-  const { icon: Icon, cls } = map[type];
-  return (
-    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${cls}`}>
-      <Icon className="h-3.5 w-3.5" />
-    </div>
-  );
+/* ─── Activity Log Helpers ─── */
+function getActivityBadge(type: ActivityEntityType | string) {
+  switch (type) {
+    case "vehicle":
+      return { icon: Car, cls: "bg-primary/10 text-primary border-primary/20", label: "Vehicle" };
+    case "service":
+      return { icon: Wrench, cls: "bg-sky-500/10 text-sky-500 border-sky-500/20", label: "Service" };
+    case "expense":
+      return { icon: DollarSign, cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20", label: "Expense" };
+    case "reminder":
+      return { icon: Bell, cls: "bg-amber-500/10 text-amber-500 border-amber-500/20", label: "Reminder" };
+    case "settings":
+      return { icon: Settings, cls: "bg-slate-500/10 text-slate-500 border-slate-500/20", label: "Settings" };
+    case "security":
+      return { icon: ShieldCheck, cls: "bg-rose-500/10 text-rose-500 border-rose-500/20", label: "Security" };
+    case "profile":
+      return { icon: User, cls: "bg-violet-500/10 text-violet-500 border-violet-500/20", label: "Profile" };
+    default:
+      return { icon: Activity, cls: "bg-primary/10 text-primary border-primary/20", label: "System" };
+  }
 }
 
 /* ─── Vehicle Card ─── */
@@ -489,9 +464,9 @@ export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
   const { data: expenses = [], isLoading: expensesLoading } = useExpenses();
-  const { data: services = [], isLoading: servicesLoading } = useServiceRecords();
   const { data: reminders = [], isLoading: remindersLoading } = useReminders();
   const { data: profile } = useProfile();
+  const { data: latestActivities = [], isLoading: activitiesLoading } = useLatestActivities(10);
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
 
@@ -502,12 +477,6 @@ export default function DashboardPage() {
     .filter((r) => r.status === "pending" && r.due_date)
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
     .slice(0, 6);
-
-  // Activity feed
-  const activityLoading = servicesLoading || expensesLoading || remindersLoading || vehiclesLoading;
-  const activityItems = activityLoading
-    ? []
-    : buildActivity(services, expenses, reminders, vehicles);
 
   // KPI card configs
   const kpis = [
@@ -615,14 +584,14 @@ export default function DashboardPage() {
         {/* Left column — 2/3 width */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* ── Recent Activity ── */}
+          {/* ── Recent Activity Feed ── */}
           <Section
             title="Recent Activity"
-            description="Latest services, expenses and reminders"
-            cta={{ label: "View vehicles", href: "/vehicles" }}
+            description="System activity audit log"
+            cta={{ label: "View full log", href: "/activities" }}
           >
             <div className="rounded-xl border border-border bg-card shadow-elevated">
-              {activityLoading ? (
+              {activitiesLoading ? (
                 <div className="p-4 space-y-4">
                   {[...Array(5)].map((_, i) => (
                     <div key={i} className="flex items-center gap-3">
@@ -635,34 +604,40 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
-              ) : activityItems.length === 0 ? (
+              ) : latestActivities.length === 0 ? (
                 <div className="p-6">
                   <EmptyState
                     icon={Activity}
-                    title="No activity yet"
-                    description="Add a vehicle to start tracking services and expenses."
+                    title="No activity recorded yet"
+                    description="Actions like adding vehicles, logging services, or updating settings will be logged here."
                     ctaLabel="Add vehicle"
                     ctaHref="/vehicles/new"
                   />
                 </div>
               ) : (
                 <div className="divide-y divide-border/50">
-                  {activityItems.map((item) => {
-                    const vehicle = vehicleMap[item.vehicleId];
+                  {latestActivities.map((item: ActivityLog) => {
+                    const badge = getActivityBadge(item.icon_type || item.entity_type);
+                    const IconComp = badge.icon;
                     return (
-                      <div key={`${item.type}-${item.id}`} className="flex items-center gap-3 px-4 py-3">
-                        <ActivityIcon type={item.type} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {vehicle ? `${vehicle.make} ${vehicle.model}` : "—"} · {fmt.shortDate(item.date)}
-                          </p>
+                      <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${badge.cls}`}>
+                          <IconComp className="h-4 w-4" />
                         </div>
-                        {item.amount != null && (
-                          <span className="text-xs font-semibold text-foreground tabular-nums">
-                            {fmt.currency(item.amount)}
-                          </span>
-                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-foreground truncate">{item.title}</p>
+                            <span className={`rounded-full border px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wider ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                        </div>
+
+                        <span className="text-[11px] text-muted-foreground shrink-0">
+                          {formatRelativeTime(item.created_at)}
+                        </span>
                       </div>
                     );
                   })}
