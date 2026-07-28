@@ -113,3 +113,29 @@ export type UserProfileUpdate = {
   timezone?: string | null;
 };
 
+export type ActivityEntityType =
+  | "vehicle"
+  | "service"
+  | "expense"
+  | "reminder"
+  | "settings"
+  | "security"
+  | "profile";
+
+export type ActivityIconType = ActivityEntityType;
+
+export interface ActivityLog {
+  id: string;
+  user_id: string;
+  entity_type: ActivityEntityType;
+  entity_id: string | null;
+  action: string;
+  title: string;
+  description: string;
+  metadata?: Record<string, any> | null;
+  icon_type?: ActivityIconType;
+  created_at: string;
+}
+
+export type ActivityLogInsert = Omit<ActivityLog, "id" | "created_at">;
+
