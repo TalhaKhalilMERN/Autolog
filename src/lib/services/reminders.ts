@@ -5,13 +5,15 @@ import type {
   MaintenanceReminderUpdate,
   ApiResponse,
 } from "@/lib/types";
+import { logActivity } from "@/lib/services/activities";
 
 /**
  * Maintenance Reminders Service
  *
  * All Supabase queries for the maintenance_reminders domain live here.
  * Both Server Components and API Route Handlers consume these functions.
- * RLS on the Supabase side enforces ownership — no user_id filtering needed on reads.
+ * RLS on the Supabase side enforces ownership.
+ * Automatically logs activities on CRUD events.
  */
 
 export async function getReminders(
@@ -53,6 +55,15 @@ export async function createReminder(
   userId: string,
   payload: MaintenanceReminderInsert
 ): Promise<ApiResponse<MaintenanceReminder>> {
+  // Fetch vehicle details for activity logging
+  const { data: vehicleRow } = await supabase
+    .from("vehicles")
+    .select("make, model")
+    .eq("id", payload.vehicle_id)
+    .maybeSingle();
+
+  const vehicleName = vehicleRow ? `${vehicleRow.make} ${vehicleRow.model}` : "vehicle";
+
   const { data, error } = await supabase
     .from("maintenance_reminders")
     .insert({ ...payload, user_id: userId })
@@ -60,7 +71,27 @@ export async function createReminder(
     .single();
 
   if (error) return { data: null, error: error.message };
-  return { data: data as MaintenanceReminder, error: null };
+
+  const reminder = data as MaintenanceReminder;
+
+  await logActivity(supabase, {
+    userId,
+    entityType: "reminder",
+    entityId: reminder.id,
+    action: "created",
+    title: "Reminder Created",
+    description: `${reminder.title} reminder scheduled for ${vehicleName}.`,
+    metadata: {
+      title: reminder.title,
+      due_date: reminder.due_date,
+      due_odometer: reminder.due_odometer,
+      reminder_type: reminder.reminder_type,
+      vehicle_name: vehicleName,
+    },
+    iconType: "reminder",
+  });
+
+  return { data: reminder, error: null };
 }
 
 export async function updateReminder(
@@ -76,18 +107,56 @@ export async function updateReminder(
     .single();
 
   if (error) return { data: null, error: error.message };
-  return { data: data as MaintenanceReminder, error: null };
+
+  const reminder = data as MaintenanceReminder;
+
+  await logActivity(supabase, {
+    userId: reminder.user_id,
+    entityType: "reminder",
+    entityId: reminder.id,
+    action: "updated",
+    title: "Reminder Updated",
+    description: `Updated reminder "${reminder.title}".`,
+    metadata: {
+      title: reminder.title,
+      status: reminder.status,
+      due_date: reminder.due_date,
+    },
+    iconType: "reminder",
+  });
+
+  return { data: reminder, error: null };
 }
 
 export async function deleteReminder(
   supabase: SupabaseClient,
   id: string
 ): Promise<ApiResponse<{ id: string }>> {
+  const { data: reminder } = await supabase
+    .from("maintenance_reminders")
+    .select("user_id, title")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("maintenance_reminders")
     .delete()
     .eq("id", id);
 
   if (error) return { data: null, error: error.message };
+
+  if (reminder) {
+    await logActivity(supabase, {
+      userId: reminder.user_id,
+      entityType: "reminder",
+      entityId: id,
+      action: "deleted",
+      title: "Reminder Deleted",
+      description: `Removed reminder "${reminder.title}".`,
+      metadata: { title: reminder.title },
+      iconType: "reminder",
+    });
+  }
+
   return { data: { id }, error: null };
 }

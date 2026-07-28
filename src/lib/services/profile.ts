@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserProfile, UserProfileUpdate, ApiResponse } from "@/lib/types";
+import { logActivity } from "@/lib/services/activities";
 
 /**
  * Profile Service
  *
  * Interacts with Supabase Auth to retrieve and update user metadata profiles.
+ * Automatically logs activities on profile changes.
  */
 
 export async function getUserProfile(
@@ -61,6 +63,21 @@ export async function updateUserProfile(
     country: user.user_metadata?.country || null,
     timezone: user.user_metadata?.timezone || null,
   };
+
+  await logActivity(supabase, {
+    userId: user.id,
+    entityType: "profile",
+    entityId: user.id,
+    action: "updated",
+    title: "Profile Updated",
+    description: `Updated profile details for ${profile.full_name || user.email}.`,
+    metadata: {
+      full_name: profile.full_name,
+      country: profile.country,
+      timezone: profile.timezone,
+    },
+    iconType: "profile",
+  });
 
   return { data: profile, error: null };
 }

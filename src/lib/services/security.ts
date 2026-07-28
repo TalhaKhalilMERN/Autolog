@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ApiResponse } from "@/lib/types";
+import { logActivity } from "@/lib/services/activities";
 
 /**
  * Security Service
  *
  * Handles password changes and session information retrieval via Supabase Auth.
+ * Automatically logs security activity on password changes.
  */
 
 export interface SecuritySession {
@@ -39,12 +41,22 @@ export async function changePassword(
   supabase: SupabaseClient,
   newPassword: string
 ): Promise<ApiResponse<{ success: boolean }>> {
-  // TODO: Supabase does not verify the current password before updating.
-  // Proper verification would require re-authentication (e.g. supabase.auth.signInWithPassword)
-  // with the current password before calling updateUser, which requires the user's
-  // credentials to be sent securely and re-verified server-side.
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  const { data: { user }, error } = await supabase.auth.updateUser({ password: newPassword });
 
   if (error) return { data: null, error: error.message };
+
+  if (user) {
+    await logActivity(supabase, {
+      userId: user.id,
+      entityType: "security",
+      entityId: user.id,
+      action: "updated",
+      title: "Password Changed",
+      description: "Account password was successfully updated.",
+      metadata: { event: "password_change" },
+      iconType: "security",
+    });
+  }
+
   return { data: { success: true }, error: null };
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ServiceRecord, ServiceRecordInsert, ServiceRecordUpdate, ApiResponse } from "@/lib/types";
+import { logActivity } from "@/lib/services/activities";
 
 /**
  * Service Records Service
@@ -9,6 +10,7 @@ import type { ServiceRecord, ServiceRecordInsert, ServiceRecordUpdate, ApiRespon
  * RLS on the Supabase side enforces ownership.
  *
  * NOTE: Automatically syncs linked records in the "expenses" table.
+ * Automatically logs activities on CRUD events.
  */
 
 export async function getServiceRecords(
@@ -50,11 +52,10 @@ export async function createServiceRecord(
   userId: string,
   payload: ServiceRecordInsert
 ): Promise<ApiResponse<ServiceRecord>> {
-  // ── Odometer guard ──────────────────────────────────────────────────────────
-  // Fetch the vehicle's current odometer before inserting.
+  // ── Odometer guard & Vehicle info ───────────────────────────────────────────
   const { data: vehicleRow, error: vehicleError } = await supabase
     .from("vehicles")
-    .select("current_odometer")
+    .select("make, model, current_odometer")
     .eq("id", payload.vehicle_id)
     .single();
 
@@ -62,6 +63,7 @@ export async function createServiceRecord(
 
   const storedOdometer = vehicleRow?.current_odometer ?? 0;
   const newMileage = Number(payload.mileage);
+  const vehicleName = `${vehicleRow.make} ${vehicleRow.model}`;
 
   if (newMileage < storedOdometer) {
     return {
@@ -112,6 +114,24 @@ export async function createServiceRecord(
     console.error("Failed to automatically sync expense for created service record:", expenseError.message);
   }
 
+  // ── Log activity ────────────────────────────────────────────────────────────
+  const costFormatted = `$${Number(serviceRecord.cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  await logActivity(supabase, {
+    userId,
+    entityType: "service",
+    entityId: serviceRecord.id,
+    action: "created",
+    title: "Service Added",
+    description: `${serviceRecord.service_type} logged for ${vehicleName} (${costFormatted}).`,
+    metadata: {
+      service_type: serviceRecord.service_type,
+      cost: serviceRecord.cost,
+      mileage: serviceRecord.mileage,
+      vehicle_name: vehicleName,
+    },
+    iconType: "service",
+  });
+
   return { data: serviceRecord, error: null };
 }
 
@@ -120,17 +140,17 @@ export async function updateServiceRecord(
   id: string,
   payload: ServiceRecordUpdate
 ): Promise<ApiResponse<ServiceRecord>> {
+  // Fetch existing service record details
+  const { data: existing, error: fetchError } = await supabase
+    .from("service_records")
+    .select("vehicle_id, service_type, user_id")
+    .eq("id", id)
+    .single();
+
+  if (fetchError) return { data: null, error: fetchError.message };
+
   // ── Odometer guard (only when mileage is being updated) ─────────────────────
   if (payload.mileage !== undefined) {
-    // We need the vehicle_id — fetch the existing service record first.
-    const { data: existing, error: fetchError } = await supabase
-      .from("service_records")
-      .select("vehicle_id")
-      .eq("id", id)
-      .single();
-
-    if (fetchError) return { data: null, error: fetchError.message };
-
     const { data: vehicleRow, error: vehicleError } = await supabase
       .from("vehicles")
       .select("current_odometer")
@@ -181,7 +201,7 @@ export async function updateServiceRecord(
 
     if (!findError && existingExpenses && existingExpenses.length > 0) {
       const expenseId = existingExpenses[0].id;
-      const { error: expenseError } = await supabase
+      await supabase
         .from("expenses")
         .update({
           vehicle_id: serviceRecord.vehicle_id,
@@ -192,12 +212,8 @@ export async function updateServiceRecord(
           notes: serviceRecord.notes,
         })
         .eq("id", expenseId);
-
-      if (expenseError) {
-        console.error("Failed to sync updated expense for service record:", expenseError.message);
-      }
     } else {
-      const { error: expenseError } = await supabase
+      await supabase
         .from("expenses")
         .insert({
           user_id: serviceRecord.user_id,
@@ -210,11 +226,23 @@ export async function updateServiceRecord(
           mileage: serviceRecord.mileage,
           notes: serviceRecord.notes,
         });
-
-      if (expenseError) {
-        console.error("Failed to create missing expense for updated service record:", expenseError.message);
-      }
     }
+
+    // Log Activity
+    await logActivity(supabase, {
+      userId: serviceRecord.user_id,
+      entityType: "service",
+      entityId: serviceRecord.id,
+      action: "updated",
+      title: "Service Updated",
+      description: `Updated ${serviceRecord.service_type} record.`,
+      metadata: {
+        service_type: serviceRecord.service_type,
+        cost: serviceRecord.cost,
+        mileage: serviceRecord.mileage,
+      },
+      iconType: "service",
+    });
 
     return { data: serviceRecord, error: null };
   }
@@ -231,7 +259,7 @@ export async function updateServiceRecord(
 
   const serviceRecord = record as ServiceRecord;
 
-  // Find and update the linked expense record or create one if it doesn't exist
+  // Sync linked expense
   const { data: existingExpenses, error: findError } = await supabase
     .from("expenses")
     .select("id")
@@ -239,7 +267,7 @@ export async function updateServiceRecord(
 
   if (!findError && existingExpenses && existingExpenses.length > 0) {
     const expenseId = existingExpenses[0].id;
-    const { error: expenseError } = await supabase
+    await supabase
       .from("expenses")
       .update({
         vehicle_id: serviceRecord.vehicle_id,
@@ -250,13 +278,8 @@ export async function updateServiceRecord(
         notes: serviceRecord.notes,
       })
       .eq("id", expenseId);
-
-    if (expenseError) {
-      console.error("Failed to sync updated expense for service record:", expenseError.message);
-    }
   } else {
-    // Create new linked expense in case of legacy/missing link
-    const { error: expenseError } = await supabase
+    await supabase
       .from("expenses")
       .insert({
         user_id: serviceRecord.user_id,
@@ -269,11 +292,23 @@ export async function updateServiceRecord(
         mileage: serviceRecord.mileage,
         notes: serviceRecord.notes,
       });
-
-    if (expenseError) {
-      console.error("Failed to create missing expense for updated service record:", expenseError.message);
-    }
   }
+
+  // Log Activity
+  await logActivity(supabase, {
+    userId: serviceRecord.user_id,
+    entityType: "service",
+    entityId: serviceRecord.id,
+    action: "updated",
+    title: "Service Updated",
+    description: `Updated ${serviceRecord.service_type} record.`,
+    metadata: {
+      service_type: serviceRecord.service_type,
+      cost: serviceRecord.cost,
+      mileage: serviceRecord.mileage,
+    },
+    iconType: "service",
+  });
 
   return { data: serviceRecord, error: null };
 }
@@ -282,6 +317,13 @@ export async function deleteServiceRecord(
   supabase: SupabaseClient,
   id: string
 ): Promise<ApiResponse<{ id: string }>> {
+  // Fetch details before delete
+  const { data: serviceRecord } = await supabase
+    .from("service_records")
+    .select("user_id, service_type, vehicle_id")
+    .eq("id", id)
+    .maybeSingle();
+
   // Automatically delete the linked expense record
   await supabase
     .from("expenses")
@@ -291,5 +333,19 @@ export async function deleteServiceRecord(
   const { error } = await supabase.from("service_records").delete().eq("id", id);
 
   if (error) return { data: null, error: error.message };
+
+  if (serviceRecord) {
+    await logActivity(supabase, {
+      userId: serviceRecord.user_id,
+      entityType: "service",
+      entityId: id,
+      action: "deleted",
+      title: "Service Deleted",
+      description: `Removed ${serviceRecord.service_type} service record.`,
+      metadata: { service_type: serviceRecord.service_type },
+      iconType: "service",
+    });
+  }
+
   return { data: { id }, error: null };
 }

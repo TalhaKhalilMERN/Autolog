@@ -1,11 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserSettings, UserSettingsUpdate, ApiResponse } from "@/lib/types";
+import { logActivity } from "@/lib/services/activities";
 
 /**
  * User Settings Service
  *
  * Handles fetching and updating user-specific settings.
  * If settings do not exist for the user, defaults will be automatically created.
+ * Automatically logs activities on settings updates.
  */
 
 const DEFAULT_SETTINGS = {
@@ -65,7 +67,7 @@ export async function updateUserSettings(
     .single();
 
   if (error) {
-    // If somehow no settings row exists yet to update, we can upsert instead
+    // If no settings row exists yet to update, upsert instead
     if (error.code === "PGRST116" || error.message.includes("contains 0 rows")) {
       const { data: upsertData, error: upsertError } = await supabase
         .from("user_settings")
@@ -80,10 +82,35 @@ export async function updateUserSettings(
       if (upsertError) {
         return { data: null, error: upsertError.message };
       }
+
+      await logActivity(supabase, {
+        userId,
+        entityType: "settings",
+        entityId: userId,
+        action: "updated",
+        title: "Notification Preferences Updated",
+        description: "Updated notification preferences and reminder thresholds.",
+        metadata: { ...payload },
+        iconType: "settings",
+      });
+
       return { data: upsertData as UserSettings, error: null };
     }
     return { data: null, error: error.message };
   }
 
-  return { data: data as UserSettings, error: null };
+  const updatedSettings = data as UserSettings;
+
+  await logActivity(supabase, {
+    userId,
+    entityType: "settings",
+    entityId: userId,
+    action: "updated",
+    title: "Notification Preferences Updated",
+    description: "Updated notification preferences and reminder thresholds.",
+    metadata: { ...payload },
+    iconType: "settings",
+  });
+
+  return { data: updatedSettings, error: null };
 }
