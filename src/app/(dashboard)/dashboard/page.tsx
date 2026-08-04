@@ -220,6 +220,8 @@ function getActivityBadge(type: ActivityEntityType | string) {
       return { icon: Wrench, cls: "bg-sky-500/10 text-sky-500 border-sky-500/20", label: "Service" };
     case "expense":
       return { icon: DollarSign, cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20", label: "Expense" };
+    case "fuel":
+      return { icon: Fuel, cls: "bg-amber-500/10 text-amber-500 border-amber-500/20", label: "Fuel Log" };
     case "reminder":
       return { icon: Bell, cls: "bg-amber-500/10 text-amber-500 border-amber-500/20", label: "Reminder" };
     case "settings":
