@@ -118,6 +118,7 @@ export type ActivityEntityType =
   | "service"
   | "expense"
   | "reminder"
+  | "fuel"
   | "settings"
   | "security"
   | "profile";
@@ -139,3 +140,24 @@ export interface ActivityLog {
 
 export type ActivityLogInsert = Omit<ActivityLog, "id" | "created_at">;
 
+/**
+ * Fuel Log — represents a single refuelling event for a vehicle.
+ */
+export interface FuelLog {
+  id: string;
+  user_id: string;
+  vehicle_id: string;
+  log_date: string;
+  odometer: number;
+  liters: number;
+  price_per_liter: number;
+  total_cost: number;
+  fuel_type: string | null;
+  fuel_station: string | null;
+  is_full_tank: boolean;
+  notes: string | null;
+  created_at: string;
+}
+
+export type FuelLogInsert = Omit<FuelLog, "id" | "user_id" | "created_at">;
+export type FuelLogUpdate = Partial<FuelLogInsert>;
