@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 
   const parsed = fuelLogInsertSchema.safeParse(body);
   if (!parsed.success) {
-    const message = parsed.error.errors.map((e) => e.message).join("; ");
+    const message = parsed.error.issues.map((e) => e.message).join("; ");
     return NextResponse.json({ error: message }, { status: 422 });
   }
 

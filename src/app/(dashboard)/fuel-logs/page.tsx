@@ -50,13 +50,18 @@ function FuelLogsSkeleton() {
 
 const FUEL_TYPES = ["Petrol", "Diesel", "Electric", "Hybrid", "Plugin Hybrid", "CNG", "LPG"];
 
+import { useSearchParams } from "next/navigation";
+
 export default function FuelLogsPage() {
+  const searchParams = useSearchParams();
+  const initialVehicleId = searchParams.get("vehicleId") || "all";
+
   const { data: fuelLogs = [], isLoading: logsLoading, error: logsError } = useFuelLogs();
   const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
 
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>("all");
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(initialVehicleId);
   const [selectedFuelType, setSelectedFuelType] = useState<string>("all");
 
   const vehicleMap = useMemo(() => {

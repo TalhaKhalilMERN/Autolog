@@ -70,7 +70,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
   const parsed = fuelLogUpdateSchema.safeParse(body);
   if (!parsed.success) {
-    const message = parsed.error.errors.map((e) => e.message).join("; ");
+    const message = parsed.error.issues.map((e) => e.message).join("; ");
     return NextResponse.json({ error: message }, { status: 422 });
   }
 
