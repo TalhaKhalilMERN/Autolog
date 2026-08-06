@@ -49,7 +49,7 @@ export function useActivities(options: UseActivitiesOptions = {}) {
  * Hook to fetch the latest N activities (e.g. for Dashboard widget).
  * Query Key: ["activities", "latest", limit]
  */
-export function useLatestActivities(limit: number = 10) {
+export function useLatestActivities(limit: number = 5) {
   return useQuery<ActivityLog[], Error>({
     queryKey: ["activities", "latest", limit],
     queryFn: async () => {

@@ -334,10 +334,10 @@ function ReminderRow({ reminder, vehicle }: { reminder: MaintenanceReminder; veh
       <div className="flex items-center gap-2 shrink-0">
         {days !== null && (
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOverdue
-              ? "bg-destructive/10 text-destructive"
-              : isToday
-                ? "bg-amber-500/10 text-amber-500"
-                : "bg-emerald-500/10 text-emerald-600"
+            ? "bg-destructive/10 text-destructive"
+            : isToday
+              ? "bg-amber-500/10 text-amber-500"
+              : "bg-emerald-500/10 text-emerald-600"
             }`}>
             {isOverdue ? `${Math.abs(days)}d overdue` : isToday ? "Today" : `${days}d left`}
           </span>
@@ -467,7 +467,7 @@ export default function DashboardPage() {
   const { data: expenses = [], isLoading: expensesLoading } = useExpenses();
   const { data: reminders = [], isLoading: remindersLoading } = useReminders();
   const { data: profile } = useProfile();
-  const { data: latestActivities = [], isLoading: activitiesLoading } = useLatestActivities(10);
+  const { data: latestActivities = [], isLoading: activitiesLoading } = useLatestActivities(6);
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
 
@@ -594,7 +594,7 @@ export default function DashboardPage() {
             <div className="rounded-xl border border-border bg-card shadow-elevated">
               {activitiesLoading ? (
                 <div className="p-4 space-y-4">
-                  {[...Array(5)].map((_, i) => (
+                  {[...Array(6)].map((_, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <Skeleton className="h-8 w-8 rounded-full" />
                       <div className="flex-1 space-y-1.5">
