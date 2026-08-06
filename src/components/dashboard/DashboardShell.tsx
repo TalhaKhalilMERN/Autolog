@@ -14,6 +14,9 @@ import {
   ChevronRight,
   Activity,
   Fuel,
+  Wrench,
+  DollarSign,
+  Bell,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
@@ -22,8 +25,11 @@ import type { User } from "@supabase/supabase-js";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/vehicles", label: "Vehicles", icon: Truck },
+  { href: "/services", label: "Services", icon: Wrench },
+  { href: "/expenses", label: "Expenses", icon: DollarSign },
   { href: "/fuel-logs", label: "Fuel Logs", icon: Fuel },
-  { href: "/activities", label: "Activity Log", icon: Activity },
+  { href: "/reminders", label: "Reminders", icon: Bell },
+  { href: "/activities", label: "Activity", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -114,8 +120,12 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/vehicles": "My Vehicles",
   "/vehicles/new": "Add Vehicle",
+  "/services": "Service History",
+  "/service-records": "Service History",
+  "/expenses": "Expenses",
   "/fuel-logs": "Fuel Logs",
   "/fuel-logs/new": "Add Fuel Log",
+  "/reminders": "Maintenance Reminders",
   "/activities": "Activity Log",
   "/activity": "Activity Log",
   "/settings": "Settings",
