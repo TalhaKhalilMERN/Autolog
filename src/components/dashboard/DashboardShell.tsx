@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Car,
   LayoutDashboard,
@@ -17,6 +17,8 @@ import {
   Wrench,
   DollarSign,
   Bell,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
@@ -35,9 +37,13 @@ const navItems = [
 
 function SidebarContent({
   user,
+  isCollapsed = false,
+  onToggleCollapse,
   onNavClick,
 }: {
   user: User;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
   onNavClick?: () => void;
 }) {
   const pathname = usePathname();
@@ -52,23 +58,40 @@ function SidebarContent({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-2.5 border-b border-border/60 px-5">
-        <Link href="/" className="flex items-center gap-2">
+      {/* Logo Header */}
+      <div
+        className={`flex h-16 items-center border-b border-border/60 px-4 ${
+          isCollapsed ? "justify-center" : "justify-between"
+        }`}
+      >
+        <Link href="/" className="flex items-center gap-2.5 min-w-0">
           <span
             aria-hidden="true"
             className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-primary shadow-glow"
           >
             <Car className="h-4 w-4 text-primary-foreground" />
           </span>
-          <span className="text-base font-semibold tracking-tight text-foreground">
-            AutoLog
-          </span>
+          {!isCollapsed && (
+            <span className="text-base font-semibold tracking-tight text-foreground truncate">
+              AutoLog
+            </span>
+          )}
         </Link>
+
+        {onToggleCollapse && !isCollapsed && (
+          <button
+            onClick={onToggleCollapse}
+            className="hidden md:flex rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer transition-colors"
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-0.5 px-3 py-4">
+      {/* Navigation Links */}
+      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active =
             pathname === href ||
@@ -78,39 +101,68 @@ function SidebarContent({
               key={href}
               href={href}
               onClick={onNavClick}
-              className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+              title={isCollapsed ? label : undefined}
+              className={`group flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-all ${
+                isCollapsed ? "justify-center px-2" : "px-3"
+              } ${
                 active
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
             >
               <Icon
-                className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${active ? "text-primary" : ""}`}
+                className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${
+                  active ? "text-primary" : ""
+                }`}
               />
-              {label}
-              {active && (
-                <ChevronRight className="ml-auto h-3.5 w-3.5 text-primary/60" />
+              {!isCollapsed && (
+                <>
+                  <span className="truncate">{label}</span>
+                  {active && (
+                    <ChevronRight className="ml-auto h-3.5 w-3.5 text-primary/60 shrink-0" />
+                  )}
+                </>
               )}
             </Link>
           );
         })}
       </nav>
 
-      {/* User + Sign Out */}
-      <div className="border-t border-border/60 p-3">
-        <div className="mb-2 rounded-lg px-3 py-2">
-          <p className="truncate text-xs font-medium text-foreground">
-            {user.user_metadata?.full_name || "User"}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-        </div>
-        <button
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive cursor-pointer"
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          Sign out
-        </button>
+      {/* User Info & Sign Out */}
+      <div className="border-t border-border/60 p-3 space-y-1">
+        {!isCollapsed ? (
+          <>
+            <div className="rounded-lg px-3 py-2">
+              <p className="truncate text-xs font-medium text-foreground">
+                {user.user_metadata?.full_name || "User"}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span>Sign out</span>
+            </button>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-1">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
+              title={user.email || "User"}
+            >
+              {(user.user_metadata?.full_name || user.email || "U")[0].toUpperCase()}
+            </div>
+            <button
+              onClick={handleSignOut}
+              title="Sign out"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive cursor-pointer transition-colors"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -140,6 +192,28 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load saved desktop sidebar state on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("autolog_sidebar_collapsed");
+    if (saved === "true") {
+      setIsCollapsed(true);
+    }
+  }, []);
+
+  // Auto close mobile drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const toggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("autolog_sidebar_collapsed", String(next));
+      return next;
+    });
+  };
 
   const pageTitle =
     PAGE_TITLES[pathname] ??
@@ -148,8 +222,16 @@ export function DashboardShell({
   return (
     <div className="flex h-screen bg-background">
       {/* ── Desktop Sidebar ── */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border/60 bg-card md:flex">
-        <SidebarContent user={user} />
+      <aside
+        className={`hidden shrink-0 flex-col border-r border-border/60 bg-card transition-all duration-300 ease-in-out md:flex ${
+          isCollapsed ? "w-16" : "w-60"
+        }`}
+      >
+        <SidebarContent
+          user={user}
+          isCollapsed={isCollapsed}
+          onToggleCollapse={toggleCollapse}
+        />
       </aside>
 
       {/* ── Mobile Drawer Overlay ── */}
@@ -180,6 +262,18 @@ export function DashboardShell({
         {/* Top Header */}
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3">
+            {/* Desktop Sidebar Toggle Button (only when collapsed) */}
+            {isCollapsed && (
+              <button
+                onClick={toggleCollapse}
+                className="hidden md:flex rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer transition-colors"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                <PanelLeftOpen className="h-5 w-5" />
+              </button>
+            )}
+
             {/* Mobile menu toggle */}
             <button
               onClick={() => setMobileOpen(true)}
