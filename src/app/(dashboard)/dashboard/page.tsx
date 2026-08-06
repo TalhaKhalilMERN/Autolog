@@ -333,13 +333,12 @@ function ReminderRow({ reminder, vehicle }: { reminder: MaintenanceReminder; veh
 
       <div className="flex items-center gap-2 shrink-0">
         {days !== null && (
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-            isOverdue
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOverdue
               ? "bg-destructive/10 text-destructive"
               : isToday
-              ? "bg-amber-500/10 text-amber-500"
-              : "bg-emerald-500/10 text-emerald-600"
-          }`}>
+                ? "bg-amber-500/10 text-amber-500"
+                : "bg-emerald-500/10 text-emerald-600"
+            }`}>
             {isOverdue ? `${Math.abs(days)}d overdue` : isToday ? "Today" : `${days}d left`}
           </span>
         )}
@@ -648,73 +647,6 @@ export default function DashboardPage() {
             </div>
           </Section>
 
-          {/* ── Vehicles Overview ── */}
-          <Section
-            title="Your Fleet"
-            description="All registered vehicles"
-            cta={{ label: "Manage vehicles", href: "/vehicles" }}
-          >
-            {vehiclesLoading ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {[...Array(2)].map((_, i) => (
-                  <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-elevated space-y-4">
-                    <div className="flex items-start justify-between">
-                      <Skeleton className="h-10 w-10 rounded-xl" />
-                      <Skeleton className="h-5 w-20 rounded-full" />
-                    </div>
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-36" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                    <div className="flex gap-2">
-                      <Skeleton className="h-7 flex-1 rounded-lg" />
-                      <Skeleton className="h-7 flex-1 rounded-lg" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : vehicles.length === 0 ? (
-              <EmptyState
-                icon={Car}
-                title="No vehicles yet"
-                description="Add your first vehicle to start tracking services and expenses."
-                ctaLabel="Add vehicle"
-                ctaHref="/vehicles/new"
-              />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {vehicles.map((v) => (
-                  <VehicleCard key={v.id} vehicle={v} reminders={reminders} />
-                ))}
-              </div>
-            )}
-          </Section>
-
-          {/* ── Future: Charts placeholder ── */}
-          <Section title="Analytics" description="Visual insights into your fleet data">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ChartPlaceholder
-                title="Expense Trends"
-                description="Monthly expense chart over time"
-                icon={TrendingUp}
-              />
-              <ChartPlaceholder
-                title="Cost Per KM"
-                description="Fuel and service cost per kilometer"
-                icon={Fuel}
-              />
-              <ChartPlaceholder
-                title="Service History"
-                description="Service frequency and intervals"
-                icon={BarChart3}
-              />
-              <ChartPlaceholder
-                title="Vehicle Health Score"
-                description="AI-based health metric per vehicle"
-                icon={Zap}
-              />
-            </div>
-          </Section>
         </div>
 
         {/* Right column — 1/3 width */}
@@ -764,6 +696,74 @@ export default function DashboardPage() {
 
         </div>
       </div>
+
+      {/* ── Vehicles Overview (Full Width) ── */}
+      <Section
+        title="Your Fleet"
+        description="All registered vehicles"
+        cta={{ label: "Manage vehicles", href: "/vehicles" }}
+      >
+        {vehiclesLoading ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-elevated space-y-4">
+                <div className="flex items-start justify-between">
+                  <Skeleton className="h-10 w-10 rounded-xl" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <div className="flex gap-2">
+                  <Skeleton className="h-7 flex-1 rounded-lg" />
+                  <Skeleton className="h-7 flex-1 rounded-lg" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : vehicles.length === 0 ? (
+          <EmptyState
+            icon={Car}
+            title="No vehicles yet"
+            description="Add your first vehicle to start tracking services and expenses."
+            ctaLabel="Add vehicle"
+            ctaHref="/vehicles/new"
+          />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {vehicles.map((v) => (
+              <VehicleCard key={v.id} vehicle={v} reminders={reminders} />
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* ── Future: Charts placeholder (Full Width) ── */}
+      <Section title="Analytics" description="Visual insights into your fleet data">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <ChartPlaceholder
+            title="Expense Trends"
+            description="Monthly expense chart over time"
+            icon={TrendingUp}
+          />
+          <ChartPlaceholder
+            title="Cost Per KM"
+            description="Fuel and service cost per kilometer"
+            icon={Fuel}
+          />
+          <ChartPlaceholder
+            title="Service History"
+            description="Service frequency and intervals"
+            icon={BarChart3}
+          />
+          <ChartPlaceholder
+            title="Vehicle Health Score"
+            description="AI-based health metric per vehicle"
+            icon={Zap}
+          />
+        </div>
+      </Section>
     </div>
   );
 }
