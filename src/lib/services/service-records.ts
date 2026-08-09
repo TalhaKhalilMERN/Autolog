@@ -65,13 +65,6 @@ export async function createServiceRecord(
   const newMileage = Number(payload.mileage);
   const vehicleName = `${vehicleRow.make} ${vehicleRow.model}`;
 
-  if (newMileage < storedOdometer) {
-    return {
-      data: null,
-      error: `Mileage cannot be less than the vehicle's current odometer (${storedOdometer.toLocaleString()} km).`,
-    };
-  }
-
   // ── Insert service record ───────────────────────────────────────────────────
   const { data: record, error } = await supabase
     .from("service_records")

@@ -163,14 +163,6 @@ export function ServiceForm({ initialVehicleId, recordId }: ServiceFormProps) {
       : null;
 
   async function onSubmit(data: ServiceRecordFormValues) {
-    if (storedOdometer !== null && Number(data.mileage) < storedOdometer) {
-      setError("mileage", {
-        type: "manual",
-        message: `Mileage cannot be less than the vehicle's current odometer (${storedOdometer.toLocaleString()} km).`,
-      });
-      return;
-    }
-
     setServerError(null);
 
     try {
@@ -303,21 +295,26 @@ export function ServiceForm({ initialVehicleId, recordId }: ServiceFormProps) {
                 type="number"
                 min={0}
                 placeholder="e.g. 50000"
-                className={inputClass(!!errors.mileage || odoState === "lower")}
+                className={inputClass(!!errors.mileage)}
               />
-              {(errors.mileage || odoState === "lower") && (
+              {errors.mileage && (
                 <p className="text-xs text-destructive" role="alert">
-                  {errors.mileage?.message ||
-                    (storedOdometer !== null
-                      ? `Mileage cannot be less than current odometer (${storedOdometer.toLocaleString()} km).`
-                      : "Invalid mileage.")}
+                  {errors.mileage.message}
+                </p>
+              )}
+              {odoState === "lower" && storedOdometer !== null && enteredMileage !== null && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Info className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  <span>
+                    Historical entry — vehicle overall odometer will remain at <strong>{storedOdometer.toLocaleString()} km</strong>.
+                  </span>
                 </p>
               )}
               {odoState === "higher" && storedOdometer !== null && enteredMileage !== null && (
                 <p className="flex items-center gap-1.5 text-xs text-primary/80">
                   <Info className="h-3.5 w-3.5 shrink-0" />
                   <span>
-                    Will update vehicle mileage from <strong>{storedOdometer.toLocaleString()} km</strong> to <strong>{enteredMileage.toLocaleString()} km</strong>.
+                    Will advance vehicle overall odometer from <strong>{storedOdometer.toLocaleString()} km</strong> to <strong>{enteredMileage.toLocaleString()} km</strong>.
                   </span>
                 </p>
               )}
@@ -380,7 +377,7 @@ export function ServiceForm({ initialVehicleId, recordId }: ServiceFormProps) {
             </Link>
             <button
               type="submit"
-              disabled={isSubmitting || odoState === "lower"}
+              disabled={isSubmitting}
               className="flex items-center gap-2 rounded-lg bg-gradient-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px disabled:pointer-events-none disabled:opacity-60 cursor-pointer"
             >
               {isSubmitting ? (
