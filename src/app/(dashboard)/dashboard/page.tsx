@@ -28,6 +28,7 @@ import { useReminders } from "@/features/vehicles/hooks/use-reminders";
 import { useDashboardStats } from "@/features/vehicles/hooks/use-dashboard-stats";
 import { useProfile } from "@/features/settings/hooks/use-profile";
 import { useLatestActivities } from "@/features/activities/hooks/use-activities";
+import { AnalyticsCharts } from "@/components/dashboard/AnalyticsCharts";
 import type { Vehicle, Expense, MaintenanceReminder, ActivityLog, ActivityEntityType } from "@/lib/types";
 
 /* ─── Formatting helpers ─── */
@@ -739,30 +740,9 @@ export default function DashboardPage() {
         )}
       </Section>
 
-      {/* ── Future: Charts placeholder (Full Width) ── */}
-      <Section title="Analytics" description="Visual insights into your fleet data">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <ChartPlaceholder
-            title="Expense Trends"
-            description="Monthly expense chart over time"
-            icon={TrendingUp}
-          />
-          <ChartPlaceholder
-            title="Cost Per KM"
-            description="Fuel and service cost per kilometer"
-            icon={Fuel}
-          />
-          <ChartPlaceholder
-            title="Service History"
-            description="Service frequency and intervals"
-            icon={BarChart3}
-          />
-          <ChartPlaceholder
-            title="Vehicle Health Score"
-            description="AI-based health metric per vehicle"
-            icon={Zap}
-          />
-        </div>
+      {/* ── Real Data Analytics Charts ── */}
+      <Section title="Analytics" description="Visual insights into your fleet spending and fuel efficiency">
+        <AnalyticsCharts />
       </Section>
     </div>
   );
