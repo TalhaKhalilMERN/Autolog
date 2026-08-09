@@ -70,7 +70,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-elevated flex flex-col justify-between h-full">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-elevated flex flex-col justify-between h-full min-h-[300px]">
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2">
@@ -80,7 +80,7 @@ function ChartCard({
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         </div>
       </div>
-      <div className="w-full flex-1 min-h-[220px] flex flex-col justify-center">
+      <div className="w-full flex-1 min-h-[230px] flex flex-col justify-center">
         {children}
       </div>
     </div>
@@ -91,7 +91,7 @@ function ChartCard({
 function ChartSkeleton() {
   return (
     <div className="space-y-3 p-2 w-full h-full flex flex-col justify-end">
-      <div className="flex items-end justify-between gap-2 h-36">
+      <div className="flex items-end justify-between gap-2 h-40">
         {[40, 65, 30, 80, 50, 90, 45, 70].map((h, i) => (
           <Skeleton key={i} className="w-full rounded-t-md" style={{ height: `${h}%` }} />
         ))}
@@ -114,7 +114,7 @@ function ChartEmptyState({
   ctaHref?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center text-center p-6 space-y-3 min-h-[200px]">
+    <div className="flex flex-col items-center justify-center text-center p-6 space-y-3 min-h-[220px]">
       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
         <Fuel className="h-5 w-5" />
       </div>
@@ -135,12 +135,19 @@ function ChartEmptyState({
   );
 }
 
+// Compact currency formatter for Y-axis ticks ($24k, $18k, $6k, $0)
+function formatCurrencyAxis(v: number): string {
+  if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `$${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k`;
+  return `$${v}`;
+}
+
 export function AnalyticsCharts() {
   const { data: analytics, isLoading, error } = useDashboardAnalytics();
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-elevated space-y-4">
             <div className="space-y-2">
@@ -168,18 +175,18 @@ export function AnalyticsCharts() {
   const hasBreakdownData = totalLifetimeSpending > 0;
   const hasVehicleData = vehicleCosts.length > 0;
 
-  // Accessible theme colors for charts
+  // Theme colors for charts
   const colors = {
     fuel: "var(--primary)",
     services: "#10b981", // Emerald
     manual: "#f59e0b",   // Amber
   };
 
-  const axisTickStyle = { fill: "var(--muted-foreground)", fontSize: 10 };
-  const vehicleAxisTickStyle = { fill: "var(--muted-foreground)", fontSize: 10 };
+  const axisTickStyle = { fill: "var(--muted-foreground)", fontSize: 11 };
+  const vehicleAxisTickStyle = { fill: "var(--muted-foreground)", fontSize: 11 };
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
       {/* ── CHART 1: Monthly Vehicle Spending (Bar Chart) ── */}
       <ChartCard
         title="Monthly Spending"
@@ -194,11 +201,11 @@ export function AnalyticsCharts() {
             ctaHref="/expenses"
           />
         ) : (
-          <div className="h-[220px] w-full pt-2">
+          <div className="h-[230px] w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlySpending} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={monthlySpending} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <XAxis dataKey="shortMonth" tick={axisTickStyle} tickLine={false} axisLine={false} />
-                <YAxis tick={axisTickStyle} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                <YAxis tick={axisTickStyle} tickLine={false} axisLine={false} tickFormatter={formatCurrencyAxis} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="fuel" name="Fuel" stackId="a" fill={colors.fuel} radius={[0, 0, 0, 0]} />
                 <Bar dataKey="services" name="Services" stackId="a" fill={colors.services} radius={[0, 0, 0, 0]} />
@@ -223,8 +230,8 @@ export function AnalyticsCharts() {
             ctaHref="/expenses"
           />
         ) : (
-          <div className="flex flex-col items-center justify-between h-full pt-2">
-            <div className="h-[140px] w-full relative flex items-center justify-center">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 h-full pt-2">
+            <div className="h-[170px] w-full sm:w-1/2 relative flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -233,8 +240,8 @@ export function AnalyticsCharts() {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    innerRadius={42}
-                    outerRadius={62}
+                    innerRadius={50}
+                    outerRadius={72}
                     paddingAngle={3}
                   >
                     {expenseBreakdown.map((entry, index) => (
@@ -246,23 +253,23 @@ export function AnalyticsCharts() {
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Total</span>
-                <span className="text-sm font-bold text-foreground">
+                <span className="text-base font-bold text-foreground">
                   ${totalLifetimeSpending.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </span>
               </div>
             </div>
 
             {/* Category breakdown list */}
-            <div className="w-full space-y-1.5 pt-2 border-t border-border/50">
+            <div className="w-full sm:w-1/2 space-y-2.5 sm:border-l sm:border-border/50 sm:pl-4">
               {expenseBreakdown.map((item) => (
                 <div key={item.category} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                    <span className="text-muted-foreground truncate">{item.name}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="text-muted-foreground font-medium truncate">{item.name}</span>
                   </div>
                   <div className="flex items-center gap-2 text-right shrink-0">
-                    <span className="font-medium text-foreground">${item.amount.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono w-9 text-right">({item.percentage}%)</span>
+                    <span className="font-semibold text-foreground">${item.amount.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                    <span className="text-[11px] text-muted-foreground font-mono w-10 text-right">({item.percentage}%)</span>
                   </div>
                 </div>
               ))}
@@ -285,22 +292,22 @@ export function AnalyticsCharts() {
             ctaHref="/vehicles/new"
           />
         ) : (
-          <div className="h-[220px] w-full pt-2">
+          <div className="h-[230px] w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 layout="vertical"
                 data={vehicleCosts.slice(0, 5)}
-                margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                margin={{ top: 5, right: 15, left: 10, bottom: 5 }}
               >
-                <XAxis type="number" tick={axisTickStyle} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                <XAxis type="number" tick={axisTickStyle} tickLine={false} axisLine={false} tickFormatter={formatCurrencyAxis} />
                 <YAxis
                   type="category"
                   dataKey="name"
                   tick={vehicleAxisTickStyle}
                   tickLine={false}
                   axisLine={false}
-                  width={90}
-                  tickFormatter={(val) => (val.length > 12 ? `${val.substring(0, 11)}…` : val)}
+                  width={120}
+                  tickFormatter={(val) => (val.length > 17 ? `${val.substring(0, 16)}…` : val)}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="fuel" name="Fuel" stackId="a" fill={colors.fuel} />
@@ -326,9 +333,9 @@ export function AnalyticsCharts() {
             ctaHref="/fuel-logs"
           />
         ) : (
-          <div className="h-[220px] w-full pt-2">
+          <div className="h-[230px] w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={fuelEconomy.overallTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <LineChart data={fuelEconomy.overallTrend} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
                 <XAxis dataKey="formattedDate" tick={axisTickStyle} tickLine={false} axisLine={false} />
                 <YAxis tick={axisTickStyle} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}`} />
                 <Tooltip content={<CustomTooltip valuePrefix="" valueSuffix=" km/L" />} />
