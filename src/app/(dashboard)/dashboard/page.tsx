@@ -319,36 +319,36 @@ function ReminderRow({ reminder, vehicle }: { reminder: MaintenanceReminder; veh
   const isToday = days === 0;
 
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0">
-      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isOverdue ? "bg-destructive/10" : "bg-amber-500/10"}`}>
+    <div className="flex items-start gap-3 py-3 border-b border-border/50 last:border-0">
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-0.5 ${isOverdue ? "bg-destructive/10" : "bg-amber-500/10"}`}>
         <Bell className={`h-3.5 w-3.5 ${isOverdue ? "text-destructive" : "text-amber-500"}`} />
       </div>
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{reminder.title}</p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground truncate">
           {vehicle ? `${vehicle.make} ${vehicle.model}` : "Unknown vehicle"}
           {reminder.due_date && ` · Due ${fmt.date(reminder.due_date)}`}
         </p>
-      </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        {days !== null && (
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOverdue
-            ? "bg-destructive/10 text-destructive"
-            : isToday
-              ? "bg-amber-500/10 text-amber-500"
-              : "bg-emerald-500/10 text-emerald-600"
-            }`}>
-            {isOverdue ? `${Math.abs(days)}d overdue` : isToday ? "Today" : `${days}d left`}
-          </span>
-        )}
-        <Link
-          href={`/vehicles/${reminder.vehicle_id}`}
-          className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:bg-accent"
-        >
-          View
-        </Link>
+        {/* Badge + action row — wraps gracefully on tiny screens */}
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          {days !== null && (
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOverdue
+              ? "bg-destructive/10 text-destructive"
+              : isToday
+                ? "bg-amber-500/10 text-amber-500"
+                : "bg-emerald-500/10 text-emerald-600"
+              }`}>
+              {isOverdue ? `${Math.abs(days)}d overdue` : isToday ? "Today" : `${days}d left`}
+            </span>
+          )}
+          <Link
+            href={`/vehicles/${reminder.vehicle_id}`}
+            className="rounded-lg border border-border px-2.5 py-0.5 text-xs font-medium text-foreground transition-all hover:bg-accent"
+          >
+            View
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -393,7 +393,7 @@ function ExpenseSummary({ expenses, loading }: { expenses: Expense[]; loading: b
     <div className="rounded-xl border border-border bg-card p-5 shadow-elevated space-y-5">
       <div>
         <p className="text-xs font-medium text-muted-foreground">Total Fleet Expenses</p>
-        <p className="text-3xl font-bold tabular-nums text-foreground mt-1">
+        <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground mt-1 break-all">
           {fmt.currency(totalAmount)}
         </p>
       </div>
@@ -402,12 +402,12 @@ function ExpenseSummary({ expenses, loading }: { expenses: Expense[]; loading: b
         {/* Service expenses bar */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-              <Wrench className="h-3 w-3 text-primary" />
-              Service Expenses
+            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground min-w-0">
+              <Wrench className="h-3 w-3 text-primary shrink-0" />
+              <span className="truncate">Service Expenses</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{fmt.currency(serviceExpenses)}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs text-muted-foreground tabular-nums">{fmt.currency(serviceExpenses)}</span>
               <span className="text-xs font-semibold text-primary">{servicePct}%</span>
             </div>
           </div>
@@ -422,12 +422,12 @@ function ExpenseSummary({ expenses, loading }: { expenses: Expense[]; loading: b
         {/* Manual expenses bar */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-              <DollarSign className="h-3 w-3 text-emerald-500" />
-              Manual Expenses
+            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground min-w-0">
+              <DollarSign className="h-3 w-3 text-emerald-500 shrink-0" />
+              <span className="truncate">Manual Expenses</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{fmt.currency(manualExpenses)}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs text-muted-foreground tabular-nums">{fmt.currency(manualExpenses)}</span>
               <span className="text-xs font-semibold text-emerald-500">{manualPct}%</span>
             </div>
           </div>
@@ -701,12 +701,12 @@ export default function DashboardPage() {
       {/* ── Vehicles Overview (Full Width) ── */}
       <Section
         title="Your Fleet"
-        description="All registered vehicles"
+        description={vehicles.length > 0 ? `${vehicles.length} registered vehicle${vehicles.length === 1 ? "" : "s"}` : "All registered vehicles"}
         cta={{ label: "Manage vehicles", href: "/vehicles" }}
       >
         {vehiclesLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(3)].map((_, i) => (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
               <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-elevated space-y-4">
                 <div className="flex items-start justify-between">
                   <Skeleton className="h-10 w-10 rounded-xl" />
@@ -732,10 +732,23 @@ export default function DashboardPage() {
             ctaHref="/vehicles/new"
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {vehicles.map((v) => (
-              <VehicleCard key={v.id} vehicle={v} reminders={reminders} />
-            ))}
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {vehicles.slice(0, 4).map((v) => (
+                <VehicleCard key={v.id} vehicle={v} reminders={reminders} />
+              ))}
+            </div>
+            {vehicles.length > 4 && (
+              <div className="flex justify-center pt-1">
+                <Link
+                  href="/vehicles"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-accent hover:border-primary/30"
+                >
+                  View all {vehicles.length} vehicles
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </Section>

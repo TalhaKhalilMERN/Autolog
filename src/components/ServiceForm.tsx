@@ -82,10 +82,9 @@ function Field({
 }
 
 const inputClass = (hasError?: boolean) =>
-  `w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:ring-2 focus:border-primary ${
-    hasError
-      ? "border-destructive focus:ring-destructive/30 focus:border-destructive"
-      : "border-border focus:ring-primary/30"
+  `w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:ring-2 focus:border-primary ${hasError
+    ? "border-destructive focus:ring-destructive/30 focus:border-destructive"
+    : "border-border focus:ring-primary/30"
   }`;
 
 interface ServiceFormProps {
@@ -177,9 +176,9 @@ export function ServiceForm({ initialVehicleId, recordId }: ServiceFormProps) {
           next_service_date: data.next_service_date || null,
           next_service_mileage:
             data.next_service_mileage !== undefined &&
-            data.next_service_mileage !== null &&
-            !Number.isNaN(data.next_service_mileage) &&
-            String(data.next_service_mileage) !== ""
+              data.next_service_mileage !== null &&
+              !Number.isNaN(data.next_service_mileage) &&
+              String(data.next_service_mileage) !== ""
               ? Number(data.next_service_mileage)
               : null,
         };
@@ -195,9 +194,9 @@ export function ServiceForm({ initialVehicleId, recordId }: ServiceFormProps) {
           next_service_date: data.next_service_date || null,
           next_service_mileage:
             data.next_service_mileage !== undefined &&
-            data.next_service_mileage !== null &&
-            !Number.isNaN(data.next_service_mileage) &&
-            String(data.next_service_mileage) !== ""
+              data.next_service_mileage !== null &&
+              !Number.isNaN(data.next_service_mileage) &&
+              String(data.next_service_mileage) !== ""
               ? Number(data.next_service_mileage)
               : null,
         };
