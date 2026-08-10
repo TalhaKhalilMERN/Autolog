@@ -258,6 +258,7 @@ export function FuelLogForm({ initialVehicleId, logId }: FuelLogFormProps) {
               <input
                 {...register("log_date")}
                 type="date"
+                max={todayStr}
                 className={inputClass(!!errors.log_date)}
               />
             </Field>

@@ -281,6 +281,7 @@ export function ServiceForm({ initialVehicleId, recordId }: ServiceFormProps) {
               <input
                 {...register("service_date")}
                 type="date"
+                max={todayStr}
                 className={inputClass(!!errors.service_date)}
               />
             </Field>

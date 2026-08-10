@@ -286,6 +286,7 @@ export function ExpenseForm({ initialVehicleId, expenseId }: ExpenseFormProps) {
             <input
               {...register("expense_date")}
               type="date"
+              max={todayStr}
               className={inputClass(!!errors.expense_date)}
             />
           </Field>
