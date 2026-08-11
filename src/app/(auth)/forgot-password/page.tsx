@@ -92,7 +92,7 @@ export default function ForgotPasswordPage() {
           Check your email
         </h1>
         <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-          We've sent a password reset link to <span className="font-medium text-foreground">{submittedEmail}</span>. Please check your inbox and click the link to reset your password.
+          If an account exists for <span className="font-medium text-foreground">{submittedEmail}</span>, you will receive a password reset link shortly. Please check your inbox and spam folder.
         </p>
         <div className="mt-8 flex flex-col gap-3 w-full">
           <Link
@@ -141,11 +141,10 @@ export default function ForgotPasswordPage() {
             autoComplete="email"
             placeholder="you@company.com"
             {...register("email")}
-            className={`w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary ${
-              errors.email
-                ? "border-destructive focus:ring-destructive/30 focus:border-destructive"
-                : "border-border"
-            }`}
+            className={`w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary ${errors.email
+              ? "border-destructive focus:ring-destructive/30 focus:border-destructive"
+              : "border-border"
+              }`}
           />
         </FormField>
 
