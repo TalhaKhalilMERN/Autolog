@@ -20,6 +20,46 @@ export function useVehicles() {
   });
 }
 
+export interface UsePaginatedVehiclesOptions {
+  page: number;
+  limit: number;
+  search?: string;
+  fuelType?: string;
+  sort?: string;
+}
+
+export interface PaginatedVehiclesResponse {
+  vehicles: Vehicle[];
+  totalCount: number;
+}
+
+/**
+ * Hook to fetch paginated and filtered vehicles from server API.
+ * Query key: ["vehicles", "paginated", options]
+ */
+export function usePaginatedVehicles(options: UsePaginatedVehiclesOptions) {
+  return useQuery<PaginatedVehiclesResponse, Error>({
+    queryKey: ["vehicles", "paginated", options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(options.page));
+      params.set("limit", String(options.limit));
+      if (options.search) params.set("search", options.search);
+      if (options.fuelType && options.fuelType !== "all") params.set("fuelType", options.fuelType);
+      if (options.sort) params.set("sort", options.sort);
+
+      const res = await fetch(`/api/vehicles?${params.toString()}`);
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || "Failed to fetch vehicles");
+      }
+      const json = await res.json();
+      return json.data;
+    },
+    placeholderData: (previousData) => previousData,
+  });
+}
+
 /**
  * Hook to fetch a single vehicle by ID.
  * Query key: ["vehicle", id]

@@ -9,7 +9,7 @@ import type { VehicleInsert } from "@/lib/types";
  * Returns all vehicles belonging to the authenticated user.
  * Supabase RLS ensures only owned rows are returned.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
 
   const {
@@ -20,7 +20,23 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await listVehicles(supabase);
+  const { searchParams } = new URL(request.url);
+  const pageStr = searchParams.get("page");
+  const limitStr = searchParams.get("limit");
+  const search = searchParams.get("search") || undefined;
+  const fuelType = searchParams.get("fuelType") || undefined;
+  const sort = (searchParams.get("sort") as any) || undefined;
+
+  const page = pageStr ? parseInt(pageStr, 10) : undefined;
+  const limit = limitStr ? parseInt(limitStr, 10) : undefined;
+
+  const result = await listVehicles(supabase, {
+    page,
+    limit,
+    search,
+    fuelType,
+    sort,
+  });
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 });

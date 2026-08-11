@@ -10,16 +10,68 @@ import { logActivity } from "@/lib/services/activities";
  * Automatically logs activities on CRUD events.
  */
 
+export interface VehicleQueryOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+  fuelType?: string;
+  sort?: "newest" | "oldest" | "name" | "odometer";
+}
+
+export interface PaginatedVehiclesResult {
+  vehicles: Vehicle[];
+  totalCount: number;
+}
+
 export async function listVehicles(
-  supabase: SupabaseClient
-): Promise<ApiResponse<Vehicle[]>> {
-  const { data, error } = await supabase
-    .from("vehicles")
-    .select("*")
-    .order("created_at", { ascending: false });
+  supabase: SupabaseClient,
+  options?: VehicleQueryOptions
+): Promise<ApiResponse<Vehicle[] | PaginatedVehiclesResult>> {
+  let query = supabase.from("vehicles").select("*", { count: "exact" });
+
+  if (options?.fuelType && options.fuelType !== "all") {
+    query = query.eq("fuel_type", options.fuelType);
+  }
+
+  if (options?.search && options.search.trim()) {
+    const term = options.search.trim();
+    query = query.or(
+      `make.ilike.%${term}%,model.ilike.%${term}%,variant.ilike.%${term}%,registration_number.ilike.%${term}%`
+    );
+  }
+
+  const sort = options?.sort || "newest";
+  if (sort === "oldest") {
+    query = query.order("created_at", { ascending: true });
+  } else if (sort === "name") {
+    query = query.order("make", { ascending: true }).order("model", { ascending: true });
+  } else if (sort === "odometer") {
+    query = query.order("current_odometer", { ascending: false, nullsFirst: false });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  if (options?.page && options?.limit) {
+    const from = (options.page - 1) * options.limit;
+    const to = from + options.limit - 1;
+    query = query.range(from, to);
+  }
+
+  const { data, count, error } = await query;
 
   if (error) return { data: null, error: error.message };
-  return { data: data as Vehicle[], error: null };
+
+  if (options?.page && options?.limit) {
+    return {
+      data: {
+        vehicles: (data as Vehicle[]) || [],
+        totalCount: count ?? 0,
+      },
+      error: null,
+    };
+  }
+
+  return { data: (data as Vehicle[]) || [], error: null };
 }
 
 export async function getVehicle(
