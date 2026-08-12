@@ -81,6 +81,36 @@ export interface MaintenanceReminder {
 export type MaintenanceReminderInsert = Omit<MaintenanceReminder, "id" | "user_id" | "created_at" | "updated_at">;
 export type MaintenanceReminderUpdate = Partial<MaintenanceReminderInsert>;
 
+export type NotificationType =
+  | "due_7_days"
+  | "due_1_day"
+  | "due_today"
+  | "mileage_1000"
+  | "mileage_500"
+  | "mileage_due";
+
+export interface NotificationCandidate {
+  reminderId: string;
+  userId: string;
+  notificationType: NotificationType;
+  scheduledFor: string;
+  vehicleId: string;
+  title: string;
+  dueDate: string | null;
+  dueOdometer: number | null;
+  currentOdometer: number | null;
+}
+
+export interface ReminderNotificationRecord {
+  id?: string;
+  reminder_id: string;
+  user_id: string;
+  notification_type: NotificationType;
+  scheduled_for: string;
+  sent_at?: string;
+  created_at?: string;
+}
+
 /** Generic typed API response wrapper */
 export type ApiResponse<T> =
   | { data: T; error: null }
