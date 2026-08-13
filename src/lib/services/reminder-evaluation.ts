@@ -191,7 +191,8 @@ export async function evaluateReminderNotifications(
       .from("reminder_notifications")
       .select("reminder_id, notification_type, scheduled_for")
       .in("reminder_id", reminderIds)
-      .eq("scheduled_for", referenceDateStr);
+      .eq("scheduled_for", referenceDateStr)
+      .eq("status", "sent");
 
     // Map of reminder_id -> Set of notification_types recorded for referenceDateStr
     const historyMap = new Map<string, Set<string>>();
