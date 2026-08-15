@@ -1,5 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { Resend } from "npm:resend@6";
 
 /**
  * Supabase Edge Function: process-reminder-notifications
@@ -131,6 +131,7 @@ function generateEmailContent(candidate: any, vehicleName: string) {
 }
 
 Deno.serve(async (req) => {
+
   // 1. Security & Authentication check
   const authHeader = req.headers.get("Authorization");
   const cronSecret = Deno.env.get("CRON_SECRET");
@@ -332,7 +333,7 @@ Deno.serve(async (req) => {
 
         if (emailRes.data && !emailRes.error) {
           sentCount++;
-          await supabase.from("reminder_notifications").upsert(
+          const { error: notificationError } = await supabase.from("reminder_notifications").upsert(
             {
               reminder_id: candidate.reminderId,
               user_id: candidate.userId,
@@ -344,6 +345,17 @@ Deno.serve(async (req) => {
             { onConflict: "reminder_id, notification_type, scheduled_for" }
           );
 
+          if (notificationError) {
+            console.error(
+              `[EdgeFunction] Failed to record notification for ${candidate.reminderId}:`,
+              notificationError
+            );
+          } else {
+            console.log(
+              `[EdgeFunction] Notification history recorded for ${candidate.reminderId}`
+            );
+          }
+
           outcomes.push({
             reminderId: candidate.reminderId,
             notificationType: candidate.notificationType,
@@ -353,7 +365,7 @@ Deno.serve(async (req) => {
           });
         } else {
           failedCount++;
-          await supabase.from("reminder_notifications").upsert(
+          const { error: notificationError } = await supabase.from("reminder_notifications").upsert(
             {
               reminder_id: candidate.reminderId,
               user_id: candidate.userId,
@@ -365,6 +377,17 @@ Deno.serve(async (req) => {
             { onConflict: "reminder_id, notification_type, scheduled_for" }
           );
 
+          if (notificationError) {
+            console.error(
+              `[EdgeFunction] Failed to record failure for ${candidate.reminderId}:`,
+              notificationError
+            );
+          } else {
+            console.log(
+              `[EdgeFunction] Notification failure recorded for ${candidate.reminderId}`
+            );
+          }
+
           console.error(`[EdgeFunction] Resend error for reminder ${candidate.reminderId}:`, emailRes.error?.message);
           outcomes.push({
             reminderId: candidate.reminderId,
@@ -375,7 +398,7 @@ Deno.serve(async (req) => {
         }
       } catch (err: any) {
         failedCount++;
-        await supabase.from("reminder_notifications").upsert(
+        const { error: notificationError } = await supabase.from("reminder_notifications").upsert(
           {
             reminder_id: candidate.reminderId,
             user_id: candidate.userId,
@@ -386,6 +409,17 @@ Deno.serve(async (req) => {
           },
           { onConflict: "reminder_id, notification_type, scheduled_for" }
         );
+
+        if (notificationError) {
+          console.error(
+            `[EdgeFunction] Failed to record failure for ${candidate.reminderId}:`,
+            notificationError
+          );
+        } else {
+          console.log(
+            `[EdgeFunction] Notification failure recorded for ${candidate.reminderId}`
+          );
+        }
 
         console.error(`[EdgeFunction] Exception processing reminder ${candidate.reminderId}:`, err.message);
         outcomes.push({
