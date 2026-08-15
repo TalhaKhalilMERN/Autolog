@@ -7,15 +7,8 @@ import { Resend } from "npm:resend@6";
  * Production entry point for automated AutoLog reminder notifications.
  * Designed for execution by Supabase Cron (pg_cron) or manual authorized HTTP requests.
  *
- * Security:
- *   - Verifies Authorization header against CRON_SECRET or SUPABASE_SERVICE_ROLE_KEY.
- *   - Never exposes API keys or secrets in logs/responses.
- *
- * Environment Secrets Required in Supabase Dashboard / CLI:
- *   - SUPABASE_URL
- *   - SUPABASE_SERVICE_ROLE_KEY
- *   - RESEND_API_KEY
- *   - CRON_SECRET (optional custom secret for Cron authorization)
+ * Evaluates current state against user notification settings (frequency: once/daily, window, thresholds)
+ * and dispatches emails safely with full duplicate protection.
  */
 
 interface RequestBody {
@@ -47,10 +40,10 @@ function generateEmailContent(candidate: any, vehicleName: string) {
 
   switch (notificationType) {
     case "due_7_days":
-      badgeLabel = "Upcoming (7 Days)";
+      badgeLabel = "Upcoming Reminder";
       badgeColor = "#0284c7";
       headline = "Upcoming Maintenance Reminder";
-      message = `Your ${vehicleName} has a scheduled maintenance reminder due in 7 days.`;
+      message = `Your ${vehicleName} has a scheduled maintenance reminder due soon.`;
       break;
     case "due_1_day":
       badgeLabel = "Due Tomorrow";
@@ -65,10 +58,10 @@ function generateEmailContent(candidate: any, vehicleName: string) {
       message = `Your ${vehicleName} has a maintenance task due today.`;
       break;
     case "mileage_1000":
-      badgeLabel = "Mileage Notice (1,000 km)";
+      badgeLabel = "Mileage Notice";
       badgeColor = "#0284c7";
       headline = "Approaching Maintenance Mileage";
-      message = `Your ${vehicleName} is within 1,000 km of its scheduled maintenance threshold.`;
+      message = `Your ${vehicleName} is approaching its scheduled maintenance odometer threshold.`;
       break;
     case "mileage_500":
       badgeLabel = "Mileage Notice (500 km)";
@@ -114,8 +107,8 @@ function generateEmailContent(candidate: any, vehicleName: string) {
                       <tr><td><strong>Vehicle:</strong></td><td>${vehicleName}</td></tr>
                       <tr><td><strong>Task:</strong></td><td>${title}</td></tr>
                       ${dueDate ? `<tr><td><strong>Due Date:</strong></td><td>${dueDate}</td></tr>` : ""}
-                      ${dueOdometer !== null ? `<tr><td><strong>Due Mileage:</strong></td><td>${dueOdometer.toLocaleString()} km</td></tr>` : ""}
-                      ${currentOdometer !== null ? `<tr><td><strong>Current Mileage:</strong></td><td>${currentOdometer.toLocaleString()} km</td></tr>` : ""}
+                      ${dueOdometer !== null && dueOdometer !== undefined ? `<tr><td><strong>Due Mileage:</strong></td><td>${dueOdometer.toLocaleString()} km</td></tr>` : ""}
+                      ${currentOdometer !== null && currentOdometer !== undefined ? `<tr><td><strong>Current Mileage:</strong></td><td>${currentOdometer.toLocaleString()} km</td></tr>` : ""}
                     </table>
                   </td>
                 </tr>
@@ -131,7 +124,6 @@ function generateEmailContent(candidate: any, vehicleName: string) {
 }
 
 Deno.serve(async (req) => {
-
   // 1. Security & Authentication check
   const authHeader = req.headers.get("Authorization");
   const cronSecret = Deno.env.get("CRON_SECRET");
@@ -181,7 +173,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(url, serviceRoleKey);
     const resend = new Resend(resendApiKey);
 
-    // 2. Fetch pending reminders
+    // 2. Fetch pending reminders with error handling
     let remindersQuery = supabase.from("maintenance_reminders").select("*").eq("status", "pending");
     if (body.userId) {
       remindersQuery = remindersQuery.eq("user_id", body.userId);
@@ -189,6 +181,7 @@ Deno.serve(async (req) => {
 
     const { data: reminders, error: remindersError } = await remindersQuery;
     if (remindersError) {
+      console.error("[EdgeFunction] Error querying reminders:", remindersError.message);
       return new Response(
         JSON.stringify({ success: false, error: `Failed to query reminders: ${remindersError.message}` }),
         { status: 500, headers: { "Content-Type": "application/json" } }
@@ -215,82 +208,138 @@ Deno.serve(async (req) => {
     const userIds = Array.from(new Set(reminders.map((r: any) => r.user_id)));
     const reminderIds = reminders.map((r: any) => r.id);
 
-    // Fetch vehicles
-    const { data: vehiclesData } = await supabase.from("vehicles").select("*").in("id", vehicleIds);
+    // Fetch related vehicles with error checking
+    const { data: vehiclesData, error: vehiclesError } = await supabase.from("vehicles").select("*").in("id", vehicleIds);
+    if (vehiclesError) {
+      console.error("[EdgeFunction] Error querying vehicles:", vehiclesError.message);
+      return new Response(
+        JSON.stringify({ success: false, error: `Failed to query vehicles: ${vehiclesError.message}` }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
     const vehicleMap = new Map();
     (vehiclesData || []).forEach((v: any) => vehicleMap.set(v.id, v));
 
-    // Fetch user settings
-    const { data: settingsData } = await supabase.from("user_settings").select("*").in("user_id", userIds);
+    // Fetch related user settings with error checking
+    const { data: settingsData, error: settingsError } = await supabase.from("user_settings").select("*").in("user_id", userIds);
+    if (settingsError) {
+      console.error("[EdgeFunction] Error querying user_settings:", settingsError.message);
+      return new Response(
+        JSON.stringify({ success: false, error: `Failed to query user settings: ${settingsError.message}` }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
     const settingsMap = new Map();
     (settingsData || []).forEach((s: any) => settingsMap.set(s.user_id, s));
 
-    // Fetch existing sent notifications for deduplication (only sent status!)
-    const { data: sentHistory } = await supabase
+    // Fetch sent history for deduplication and frequency checks (only sent status!)
+    const { data: sentHistory, error: historyError } = await supabase
       .from("reminder_notifications")
-      .select("reminder_id, notification_type, scheduled_for")
+      .select("reminder_id, notification_type, scheduled_for, status")
       .in("reminder_id", reminderIds)
-      .eq("scheduled_for", referenceDateStr)
       .eq("status", "sent");
 
-    const sentHistorySet = new Set();
+    if (historyError) {
+      console.error("[EdgeFunction] Error querying notification history:", historyError.message);
+      return new Response(
+        JSON.stringify({ success: false, error: `Failed to query notification history: ${historyError.message}` }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const hasAnySentMap = new Map();
+    const todaySentTypesMap = new Map();
     (sentHistory || []).forEach((h: any) => {
-      sentHistorySet.add(`${h.reminder_id}:${h.notification_type}:${h.scheduled_for}`);
+      hasAnySentMap.set(h.reminder_id, true);
+      if (h.scheduled_for === referenceDateStr) {
+        if (!todaySentTypesMap.has(h.reminder_id)) {
+          todaySentTypesMap.set(h.reminder_id, new Set());
+        }
+        todaySentTypesMap.get(h.reminder_id).add(h.notification_type);
+      }
     });
 
-    // 3. Evaluate candidates
+    // 3. Evaluate candidates dynamically using current user settings
     const candidates: any[] = [];
     for (const reminder of reminders) {
       const vehicle = vehicleMap.get(reminder.vehicle_id);
       const userSettings = settingsMap.get(reminder.user_id);
 
-      if (userSettings && userSettings.email_notifications === false) {
+      // Check current user settings (must exist and email_notifications === true)
+      if (!userSettings || userSettings.email_notifications !== true) {
         continue;
       }
 
+      const frequency = (userSettings.notification_frequency || "once").toLowerCase().trim();
+      const daysBeforeWindow = userSettings.notification_days_before ?? 7;
+      const notifyByOdometer = userSettings.notify_by_odometer ?? true;
+      const odometerThreshold = userSettings.odometer_threshold ?? 500;
+
+      const hasAnySent = hasAnySentMap.get(reminder.id) || false;
+      const sentForToday = todaySentTypesMap.get(reminder.id) || new Set();
+
+      const isSuppressed = (type: string): boolean => {
+        if (frequency === "once") {
+          return hasAnySent;
+        } else {
+          return sentForToday.has(type) || sentForToday.size > 0;
+        }
+      };
+
       // Date evaluation
       if (reminder.due_date) {
-        const days = getDaysDifference(reminder.due_date, referenceDateStr);
-        let type = null;
-        if (days === 7) type = "due_7_days";
-        else if (days === 1) type = "due_1_day";
-        else if (days === 0) type = "due_today";
+        const daysRemaining = getDaysDifference(reminder.due_date, referenceDateStr);
+        if (daysRemaining >= 0 && daysRemaining <= daysBeforeWindow) {
+          let type = null;
+          if (daysRemaining === 0) type = "due_today";
+          else if (daysRemaining === 1) type = "due_1_day";
+          else type = "due_7_days";
 
-        if (type && !sentHistorySet.has(`${reminder.id}:${type}:${referenceDateStr}`)) {
-          candidates.push({
-            reminderId: reminder.id,
-            userId: reminder.user_id,
-            vehicleId: reminder.vehicle_id,
-            title: reminder.title,
-            notificationType: type,
-            scheduledFor: referenceDateStr,
-            dueDate: reminder.due_date,
-            dueOdometer: reminder.due_odometer,
-            currentOdometer: vehicle?.current_odometer ?? null,
-          });
+          if (type && !isSuppressed(type)) {
+            candidates.push({
+              reminderId: reminder.id,
+              userId: reminder.user_id,
+              vehicleId: reminder.vehicle_id,
+              title: reminder.title,
+              notificationType: type,
+              scheduledFor: referenceDateStr,
+              dueDate: reminder.due_date,
+              dueOdometer: reminder.due_odometer,
+              currentOdometer: vehicle?.current_odometer ?? null,
+            });
+          }
         }
       }
 
       // Mileage evaluation
-      if (reminder.due_odometer !== null && reminder.due_odometer !== undefined && vehicle?.current_odometer) {
-        const remaining = reminder.due_odometer - vehicle.current_odometer;
-        let type = null;
-        if (remaining <= 0) type = "mileage_due";
-        else if (remaining <= 500) type = "mileage_500";
-        else if (remaining <= 1000) type = "mileage_1000";
+      if (
+        notifyByOdometer &&
+        reminder.due_odometer !== null &&
+        reminder.due_odometer !== undefined &&
+        odometerThreshold > 0 &&
+        vehicle?.current_odometer !== null &&
+        vehicle?.current_odometer !== undefined
+      ) {
+        const remainingKm = reminder.due_odometer - vehicle.current_odometer;
+        if (remainingKm <= odometerThreshold) {
+          let type = null;
+          if (remainingKm <= 0) type = "mileage_due";
+          else if (remainingKm <= 500) type = "mileage_500";
+          else type = "mileage_1000";
 
-        if (type && !sentHistorySet.has(`${reminder.id}:${type}:${referenceDateStr}`)) {
-          candidates.push({
-            reminderId: reminder.id,
-            userId: reminder.user_id,
-            vehicleId: reminder.vehicle_id,
-            title: reminder.title,
-            notificationType: type,
-            scheduledFor: referenceDateStr,
-            dueDate: reminder.due_date,
-            dueOdometer: reminder.due_odometer,
-            currentOdometer: vehicle.current_odometer,
-          });
+          if (type && !isSuppressed(type)) {
+            candidates.push({
+              reminderId: reminder.id,
+              userId: reminder.user_id,
+              vehicleId: reminder.vehicle_id,
+              title: reminder.title,
+              notificationType: type,
+              scheduledFor: referenceDateStr,
+              dueDate: reminder.due_date,
+              dueOdometer: reminder.due_odometer,
+              currentOdometer: vehicle.current_odometer,
+            });
+          }
         }
       }
     }
@@ -333,7 +382,7 @@ Deno.serve(async (req) => {
 
         if (emailRes.data && !emailRes.error) {
           sentCount++;
-          const { error: notificationError } = await supabase.from("reminder_notifications").upsert(
+          const { error: upsertErr } = await supabase.from("reminder_notifications").upsert(
             {
               reminder_id: candidate.reminderId,
               user_id: candidate.userId,
@@ -345,15 +394,8 @@ Deno.serve(async (req) => {
             { onConflict: "reminder_id, notification_type, scheduled_for" }
           );
 
-          if (notificationError) {
-            console.error(
-              `[EdgeFunction] Failed to record notification for ${candidate.reminderId}:`,
-              notificationError
-            );
-          } else {
-            console.log(
-              `[EdgeFunction] Notification history recorded for ${candidate.reminderId}`
-            );
+          if (upsertErr) {
+            console.error(`[EdgeFunction] Error upserting sent notification: ${upsertErr.message}`);
           }
 
           outcomes.push({
@@ -365,7 +407,7 @@ Deno.serve(async (req) => {
           });
         } else {
           failedCount++;
-          const { error: notificationError } = await supabase.from("reminder_notifications").upsert(
+          const { error: upsertErr } = await supabase.from("reminder_notifications").upsert(
             {
               reminder_id: candidate.reminderId,
               user_id: candidate.userId,
@@ -377,15 +419,8 @@ Deno.serve(async (req) => {
             { onConflict: "reminder_id, notification_type, scheduled_for" }
           );
 
-          if (notificationError) {
-            console.error(
-              `[EdgeFunction] Failed to record failure for ${candidate.reminderId}:`,
-              notificationError
-            );
-          } else {
-            console.log(
-              `[EdgeFunction] Notification failure recorded for ${candidate.reminderId}`
-            );
+          if (upsertErr) {
+            console.error(`[EdgeFunction] Error upserting failed notification: ${upsertErr.message}`);
           }
 
           console.error(`[EdgeFunction] Resend error for reminder ${candidate.reminderId}:`, emailRes.error?.message);
@@ -398,7 +433,7 @@ Deno.serve(async (req) => {
         }
       } catch (err: any) {
         failedCount++;
-        const { error: notificationError } = await supabase.from("reminder_notifications").upsert(
+        await supabase.from("reminder_notifications").upsert(
           {
             reminder_id: candidate.reminderId,
             user_id: candidate.userId,
@@ -409,17 +444,6 @@ Deno.serve(async (req) => {
           },
           { onConflict: "reminder_id, notification_type, scheduled_for" }
         );
-
-        if (notificationError) {
-          console.error(
-            `[EdgeFunction] Failed to record failure for ${candidate.reminderId}:`,
-            notificationError
-          );
-        } else {
-          console.log(
-            `[EdgeFunction] Notification failure recorded for ${candidate.reminderId}`
-          );
-        }
 
         console.error(`[EdgeFunction] Exception processing reminder ${candidate.reminderId}:`, err.message);
         outcomes.push({
@@ -445,6 +469,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (err: any) {
+    console.error("[EdgeFunction] Unhandled exception:", err.message);
     return new Response(
       JSON.stringify({ success: false, error: err.message || "Internal Edge Function Error" }),
       { status: 500, headers: { "Content-Type": "application/json" } }

@@ -15,7 +15,8 @@ interface ScenarioTestResult {
 
 function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number; testResults: ScenarioTestResult[] } {
   const results: ScenarioTestResult[] = [];
-  const refDate = "2026-08-12";
+  const refDate = "2026-08-15";
+  const refDateNextDay = "2026-08-16";
 
   const baseReminder: MaintenanceReminder = {
     id: "rem-101",
@@ -24,7 +25,7 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
     title: "Brake Fluid Service",
     description: "Replace brake fluid dot 4",
     reminder_type: "service",
-    due_date: "2026-08-19", // due in 7 days
+    due_date: "2026-08-22", // due in 7 days relative to refDate
     due_odometer: null,
     status: "pending",
     created_at: "2026-01-01T00:00:00Z",
@@ -51,13 +52,13 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
     email_notifications: true,
     notification_days_before: 7,
     notify_by_odometer: true,
-    odometer_threshold: 500,
+    odometer_threshold: 1000,
     notification_frequency: "once",
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
   };
 
-  // Scenario 1: Date reminder candidate -> evaluates to due_7_days and generates email
+  // Scenario 1: 7-day window + once + reminder exactly 7 days away -> 1 candidate
   {
     const candidates = evaluateSingleReminder({
       reminder: baseReminder,
@@ -65,103 +66,178 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
       userSettings: baseSettings,
       referenceDateStr: refDate,
     });
-    const email = candidates.length > 0 ? generateReminderEmailContent(candidates[0], "2021 Toyota Corolla") : null;
-    const passed = candidates.length === 1 && candidates[0].notificationType === "due_7_days" && email?.subject.includes("Brake Fluid Service") === true;
+    const passed = candidates.length === 1 && candidates[0].notificationType === "due_7_days";
     results.push({
       scenarioNumber: 1,
-      description: "Date reminder candidate -> evaluated & email content generated",
+      description: "7-day window + once + reminder exactly 7 days away -> 1 candidate (due_7_days)",
       passed,
-      expected: "due_7_days candidate with email content",
-      actual: candidates[0]?.notificationType || "none",
+      expected: "1 candidate (due_7_days)",
+      actual: `${candidates.length} candidates (${candidates[0]?.notificationType || "none"})`,
     });
   }
 
-  // Scenario 2: Mileage reminder candidate -> evaluates to mileage_500 and generates email
+  // Scenario 2: 7-day window + once + reminder 6 days away -> eligible if no notification previously sent
   {
-    const mileageReminder: MaintenanceReminder = { ...baseReminder, due_date: null, due_odometer: 45450 };
+    const rem6 = { ...baseReminder, due_date: "2026-08-21" }; // 6 days away
     const candidates = evaluateSingleReminder({
-      reminder: mileageReminder,
+      reminder: rem6,
       vehicle: baseVehicle,
       userSettings: baseSettings,
+      hasAnySentNotification: false,
       referenceDateStr: refDate,
     });
-    const email = candidates.length > 0 ? generateReminderEmailContent(candidates[0], "2021 Toyota Corolla") : null;
-    const passed = candidates.length === 1 && candidates[0].notificationType === "mileage_500" && email?.html.includes("45,450 km") === true;
+    const passed = candidates.length === 1 && candidates[0].notificationType === "due_7_days";
     results.push({
       scenarioNumber: 2,
-      description: "Mileage reminder candidate -> evaluated & email content generated",
+      description: "7-day window + once + reminder 6 days away -> eligible if no notification sent yet",
       passed,
-      expected: "mileage_500 candidate with mileage in HTML body",
-      actual: candidates[0]?.notificationType || "none",
+      expected: "1 candidate (due_7_days)",
+      actual: `${candidates.length} candidates (${candidates[0]?.notificationType || "none"})`,
     });
   }
 
-  // Scenario 3: Already-sent notification -> deduplicated & skipped
+  // Scenario 3: 7-day window + once + reminder 5 days away after Cron missed day 7 -> eligible once
+  {
+    const rem5 = { ...baseReminder, due_date: "2026-08-20" }; // 5 days away
+    const candidates = evaluateSingleReminder({
+      reminder: rem5,
+      vehicle: baseVehicle,
+      userSettings: baseSettings,
+      hasAnySentNotification: false,
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 1 && candidates[0].notificationType === "due_7_days";
+    results.push({
+      scenarioNumber: 3,
+      description: "7-day window + once + reminder 5 days away (Cron missed day 7) -> eligible once",
+      passed,
+      expected: "1 candidate (due_7_days)",
+      actual: `${candidates.length} candidates (${candidates[0]?.notificationType || "none"})`,
+    });
+  }
+
+  // Scenario 4: 7-day window + once + notification already sent -> no duplicate
   {
     const candidates = evaluateSingleReminder({
       reminder: baseReminder,
       vehicle: baseVehicle,
       userSettings: baseSettings,
-      existingNotificationTypesForScheduledDate: new Set(["due_7_days"]),
+      hasAnySentNotification: true,
       referenceDateStr: refDate,
     });
     const passed = candidates.length === 0;
     results.push({
-      scenarioNumber: 3,
-      description: "Already-sent notification -> duplicate skipped during evaluation",
+      scenarioNumber: 4,
+      description: "7-day window + once + notification already sent -> 0 candidates (no duplicate)",
       passed,
-      expected: "0 candidates (skipped duplicate)",
+      expected: "0 candidates",
       actual: `${candidates.length} candidates`,
     });
   }
 
-  // Scenario 4: Resend failure handling -> status recorded as failed
+  // Scenario 5: 7-day window + daily + reminder inside window -> candidate generated for current date
   {
-    // Simulating failed status payload
-    const failedRecord = {
-      reminder_id: baseReminder.id,
-      notification_type: "due_7_days",
-      scheduled_for: refDate,
-      status: "failed",
-      sent_at: null,
-    };
-    const passed = failedRecord.status === "failed" && failedRecord.sent_at === null;
-    results.push({
-      scenarioNumber: 4,
-      description: "Resend failure -> status recorded as 'failed' and sent_at remains null",
-      passed,
-      expected: "status: failed, sent_at: null",
-      actual: `status: ${failedRecord.status}, sent_at: ${failedRecord.sent_at}`,
+    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const candidates = evaluateSingleReminder({
+      reminder: baseReminder,
+      vehicle: baseVehicle,
+      userSettings: dailySettings,
+      sentNotificationTypesForToday: new Set(),
+      referenceDateStr: refDate,
     });
-  }
-
-  // Scenario 5: Multiple candidates -> error isolation keeps processing active
-  {
-    const cand1: NotificationCandidate = { reminderId: "r1", userId: "u1", notificationType: "due_7_days", scheduledFor: refDate, vehicleId: "v1", title: "Tire Rotation", dueDate: "2026-08-19", dueOdometer: null, currentOdometer: null };
-    const cand2: NotificationCandidate = { reminderId: "r2", userId: "u2", notificationType: "due_1_day", scheduledFor: refDate, vehicleId: "v2", title: "Spark Plugs", dueDate: "2026-08-13", dueOdometer: null, currentOdometer: null };
-    
-    // Simulate candidate 1 throwing error, candidate 2 completing
-    const outcomes = [];
-    try {
-      throw new Error("Simulated API network glitch");
-    } catch (err: any) {
-      outcomes.push({ reminderId: cand1.reminderId, status: "failed", error: err.message });
-    }
-    outcomes.push({ reminderId: cand2.reminderId, status: "sent" });
-
-    const passed = outcomes.length === 2 && outcomes[0].status === "failed" && outcomes[1].status === "sent";
+    const passed = candidates.length === 1 && candidates[0].scheduledFor === refDate;
     results.push({
       scenarioNumber: 5,
-      description: "Multiple candidates -> failure on candidate 1 does not prevent candidate 2 processing",
+      description: "7-day window + daily + reminder inside window -> 1 candidate for current calendar date",
       passed,
-      expected: "candidate 1: failed, candidate 2: sent",
-      actual: `cand1: ${outcomes[0]?.status}, cand2: ${outcomes[1]?.status}`,
+      expected: `1 candidate for date ${refDate}`,
+      actual: `${candidates.length} candidate for date ${candidates[0]?.scheduledFor || "none"}`,
     });
   }
 
-  // Scenario 6: User with email_notifications = false -> candidate skipped
+  // Scenario 6: Daily notification evaluated twice on same day -> second evaluation skipped
   {
-    const disabledSettings: UserSettings = { ...baseSettings, email_notifications: false };
+    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const candidates = evaluateSingleReminder({
+      reminder: baseReminder,
+      vehicle: baseVehicle,
+      userSettings: dailySettings,
+      sentNotificationTypesForToday: new Set(["due_7_days"]),
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 0;
+    results.push({
+      scenarioNumber: 6,
+      description: "Daily notification evaluated twice on same day -> second evaluation skipped",
+      passed,
+      expected: "0 candidates (already sent today)",
+      actual: `${candidates.length} candidates`,
+    });
+  }
+
+  // Scenario 7: Daily notification evaluated on following day -> candidate generated for new date
+  {
+    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const candidates = evaluateSingleReminder({
+      reminder: baseReminder,
+      vehicle: baseVehicle,
+      userSettings: dailySettings,
+      sentNotificationTypesForToday: new Set(), // new day has no sent notifications yet
+      referenceDateStr: refDateNextDay,
+    });
+    const passed = candidates.length === 1 && candidates[0].scheduledFor === refDateNextDay;
+    results.push({
+      scenarioNumber: 7,
+      description: "Daily notification evaluated on following day -> 1 candidate generated for next date",
+      passed,
+      expected: `1 candidate for date ${refDateNextDay}`,
+      actual: `${candidates.length} candidate for date ${candidates[0]?.scheduledFor || "none"}`,
+    });
+  }
+
+  // Scenario 8: User changes daily -> once -> future daily notifications stop if previous notification sent
+  {
+    const onceSettings = { ...baseSettings, notification_frequency: "once" };
+    const candidates = evaluateSingleReminder({
+      reminder: baseReminder,
+      vehicle: baseVehicle,
+      userSettings: onceSettings,
+      hasAnySentNotification: true, // past daily run sent at least one email
+      referenceDateStr: refDateNextDay,
+    });
+    const passed = candidates.length === 0;
+    results.push({
+      scenarioNumber: 8,
+      description: "User changes daily -> once -> future daily notifications stop if previous notification sent",
+      passed,
+      expected: "0 candidates",
+      actual: `${candidates.length} candidates`,
+    });
+  }
+
+  // Scenario 9: User changes once -> daily -> daily notifications resume from current date
+  {
+    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const candidates = evaluateSingleReminder({
+      reminder: baseReminder,
+      vehicle: baseVehicle,
+      userSettings: dailySettings,
+      sentNotificationTypesForToday: new Set(), // no notification sent today yet
+      referenceDateStr: refDateNextDay,
+    });
+    const passed = candidates.length === 1 && candidates[0].scheduledFor === refDateNextDay;
+    results.push({
+      scenarioNumber: 9,
+      description: "User changes once -> daily -> daily notifications resume from current date",
+      passed,
+      expected: `1 candidate for date ${refDateNextDay}`,
+      actual: `${candidates.length} candidate for date ${candidates[0]?.scheduledFor || "none"}`,
+    });
+  }
+
+  // Scenario 10: Email notifications disabled -> 0 candidates
+  {
+    const disabledSettings = { ...baseSettings, email_notifications: false };
     const candidates = evaluateSingleReminder({
       reminder: baseReminder,
       vehicle: baseVehicle,
@@ -170,33 +246,177 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
     });
     const passed = candidates.length === 0;
     results.push({
-      scenarioNumber: 6,
-      description: "User with reminder emails disabled -> candidate skipped",
+      scenarioNumber: 10,
+      description: "Email notifications disabled -> 0 candidates",
       passed,
       expected: "0 candidates",
       actual: `${candidates.length} candidates`,
     });
   }
 
-  // Scenario 7: No eligible candidates -> processor completes cleanly with totalCandidates = 0
+  // Scenario 11: Due-date reminder outside notification window -> 0 candidates
   {
-    const candidates: NotificationCandidate[] = [];
-    const summary = {
-      referenceDate: refDate,
-      totalCandidates: candidates.length,
-      processedCount: 0,
-      sentCount: 0,
-      failedCount: 0,
-      skippedCount: 0,
-      outcomes: [],
-    };
-    const passed = summary.totalCandidates === 0 && summary.processedCount === 0;
+    const farReminder = { ...baseReminder, due_date: "2026-08-30" }; // 15 days away, window is 7
+    const candidates = evaluateSingleReminder({
+      reminder: farReminder,
+      vehicle: baseVehicle,
+      userSettings: baseSettings,
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 0;
     results.push({
-      scenarioNumber: 7,
-      description: "No eligible candidates -> processor completes cleanly with 0 processed",
+      scenarioNumber: 11,
+      description: "Due-date reminder outside notification window (15 days away) -> 0 candidates",
       passed,
-      expected: "totalCandidates: 0, processedCount: 0",
-      actual: `totalCandidates: ${summary.totalCandidates}, processedCount: ${summary.processedCount}`,
+      expected: "0 candidates",
+      actual: `${candidates.length} candidates`,
+    });
+  }
+
+  // Scenario 12: Due today -> due_today candidate
+  {
+    const todayReminder = { ...baseReminder, due_date: refDate };
+    const candidates = evaluateSingleReminder({
+      reminder: todayReminder,
+      vehicle: baseVehicle,
+      userSettings: baseSettings,
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 1 && candidates[0].notificationType === "due_today";
+    results.push({
+      scenarioNumber: 12,
+      description: "Due today -> due_today candidate generated",
+      passed,
+      expected: "1 candidate (due_today)",
+      actual: `${candidates.length} candidates (${candidates[0]?.notificationType || "none"})`,
+    });
+  }
+
+  // Scenario 13: Odometer threshold = 1000 & remaining mileage = 800 -> eligible
+  {
+    const mileageReminder: MaintenanceReminder = { ...baseReminder, due_date: null, due_odometer: 45800 };
+    const candidates = evaluateSingleReminder({
+      reminder: mileageReminder,
+      vehicle: baseVehicle,
+      userSettings: baseSettings,
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 1 && candidates[0].notificationType === "mileage_1000";
+    results.push({
+      scenarioNumber: 13,
+      description: "Odometer threshold = 1000 and remaining = 800 -> 1 candidate (mileage_1000)",
+      passed,
+      expected: "1 candidate (mileage_1000)",
+      actual: `${candidates.length} candidates (${candidates[0]?.notificationType || "none"})`,
+    });
+  }
+
+  // Scenario 14: Odometer reminder with null vehicle current_odometer -> cannot evaluate
+  {
+    const nullOdoVehicle = { ...baseVehicle, current_odometer: null as any };
+    const mileageReminder: MaintenanceReminder = { ...baseReminder, due_date: null, due_odometer: 45800 };
+    const candidates = evaluateSingleReminder({
+      reminder: mileageReminder,
+      vehicle: nullOdoVehicle,
+      userSettings: baseSettings,
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 0;
+    results.push({
+      scenarioNumber: 14,
+      description: "Odometer reminder with null vehicle current_odometer -> 0 candidates",
+      passed,
+      expected: "0 candidates",
+      actual: `${candidates.length} candidates`,
+    });
+  }
+
+  // Scenario 15: Odometer daily evaluated twice on same date -> only 1 email/candidate
+  {
+    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const mileageReminder: MaintenanceReminder = { ...baseReminder, due_date: null, due_odometer: 45800 };
+    const candidates = evaluateSingleReminder({
+      reminder: mileageReminder,
+      vehicle: baseVehicle,
+      userSettings: dailySettings,
+      sentNotificationTypesForToday: new Set(["mileage_1000"]),
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 0;
+    results.push({
+      scenarioNumber: 15,
+      description: "Odometer daily evaluated twice on same date -> second run skipped",
+      passed,
+      expected: "0 candidates",
+      actual: `${candidates.length} candidates`,
+    });
+  }
+
+  // Scenario 16: Failed Resend attempt -> status recorded as failed, allowing future retry
+  {
+    const failedRecord = {
+      reminder_id: baseReminder.id,
+      notification_type: "due_7_days",
+      scheduled_for: refDate,
+      status: "failed",
+      sent_at: null,
+    };
+    // Since failedRecord.status !== 'sent', hasAnySentNotification remains false for retry
+    const hasAnySent = failedRecord.status === "sent";
+    const candidates = evaluateSingleReminder({
+      reminder: baseReminder,
+      vehicle: baseVehicle,
+      userSettings: baseSettings,
+      hasAnySentNotification: hasAnySent,
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 1 && candidates[0].notificationType === "due_7_days";
+    results.push({
+      scenarioNumber: 16,
+      description: "Failed Resend attempt -> status recorded as 'failed', allowing future retry",
+      passed,
+      expected: "1 candidate (eligible for retry)",
+      actual: `${candidates.length} candidate`,
+    });
+  }
+
+  // Scenario 17: Multiple vehicles -> each reminder evaluates using its own vehicle odometer
+  {
+    const veh2: Vehicle = { ...baseVehicle, id: "veh-102", current_odometer: 90000 };
+    const remVeh2: MaintenanceReminder = { ...baseReminder, id: "rem-102", vehicle_id: "veh-102", due_date: null, due_odometer: 90400 };
+    const candidates = evaluateSingleReminder({
+      reminder: remVeh2,
+      vehicle: veh2,
+      userSettings: baseSettings,
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 1 && candidates[0].currentOdometer === 90000 && candidates[0].notificationType === "mileage_500";
+    results.push({
+      scenarioNumber: 17,
+      description: "Multiple vehicles -> each reminder uses its own vehicle's current odometer",
+      passed,
+      expected: "1 candidate for vehicle 2 (mileage_500, odo 90,000)",
+      actual: `${candidates.length} candidate (odo ${candidates[0]?.currentOdometer})`,
+    });
+  }
+
+  // Scenario 18: Multiple users -> each user settings evaluated independently
+  {
+    const user2Settings: UserSettings = { ...baseSettings, user_id: "user-102", email_notifications: false };
+    const remUser2: MaintenanceReminder = { ...baseReminder, id: "rem-103", user_id: "user-102" };
+    const candidates = evaluateSingleReminder({
+      reminder: remUser2,
+      vehicle: baseVehicle,
+      userSettings: user2Settings,
+      referenceDateStr: refDate,
+    });
+    const passed = candidates.length === 0;
+    results.push({
+      scenarioNumber: 18,
+      description: "Multiple users -> user 2 with disabled notifications produces 0 candidates",
+      passed,
+      expected: "0 candidates for user 2",
+      actual: `${candidates.length} candidates`,
     });
   }
 
@@ -212,14 +432,7 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
  * [DEVELOPMENT TEST ENDPOINT]
  * GET / POST /api/admin/process-reminders
  *
- * Manually executes the notification processor:
- *   evaluateReminders() -> candidates -> Resend -> reminder_notifications
- *
- * Query parameters:
- *   - date: optional reference date YYYY-MM-DD (defaults to today)
- *   - userId: optional filter for a specific user ID
- *   - overrideEmail: optional override email address (for Resend free tier testing)
- *   - runTests: set to true to run unit test suite for processor scenarios
+ * Manually executes the notification processor or test suite.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

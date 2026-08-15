@@ -23,13 +23,14 @@ export interface SingleReminderEvaluationParams {
   reminder: MaintenanceReminder;
   vehicle?: Vehicle | null;
   userSettings?: UserSettings | null;
-  existingNotificationTypesForScheduledDate?: Set<string>;
+  hasAnySentNotification?: boolean;
+  sentNotificationTypesForToday?: Set<string>;
   referenceDateStr?: string; // YYYY-MM-DD
 }
 
 /**
  * Pure function to evaluate a single reminder against current state and reference date.
- * Returns array of eligible notification candidates (usually 0 or 1).
+ * Respects current user settings (frequency, notification_days_before, notify_by_odometer, odometer_threshold).
  */
 export function evaluateSingleReminder(
   params: SingleReminderEvaluationParams
@@ -38,7 +39,8 @@ export function evaluateSingleReminder(
     reminder,
     vehicle,
     userSettings,
-    existingNotificationTypesForScheduledDate = new Set(),
+    hasAnySentNotification = false,
+    sentNotificationTypesForToday = new Set(),
     referenceDateStr = new Date().toISOString().split("T")[0],
   } = params;
 
@@ -48,29 +50,45 @@ export function evaluateSingleReminder(
   }
 
   // 2. Check user notification settings
-  // If user settings record exists and email_notifications is explicitly false, suppress candidate.
-  if (userSettings && userSettings.email_notifications === false) {
+  // If user settings missing or email_notifications is not true, suppress candidates safely
+  if (!userSettings || userSettings.email_notifications !== true) {
     return [];
   }
 
+  const frequency = (userSettings.notification_frequency || "once").toLowerCase().trim();
+  const daysBeforeWindow = userSettings.notification_days_before ?? 7;
+  const notifyByOdometer = userSettings.notify_by_odometer ?? true;
+  const odometerThreshold = userSettings.odometer_threshold ?? 500;
+
   const candidates: NotificationCandidate[] = [];
+
+  // Helper: Frequency & history check
+  const isSuppressed = (type: NotificationType): boolean => {
+    if (frequency === "once") {
+      // For 'once', suppress if ANY notification has already been successfully sent for this reminder
+      return hasAnySentNotification;
+    } else {
+      // For 'daily', suppress if a notification was already sent today for this date/reminder
+      return sentNotificationTypesForToday.has(type) || sentNotificationTypesForToday.size > 0;
+    }
+  };
 
   // 3. Date-based Reminder Evaluation
   if (reminder.due_date) {
     const daysRemaining = getDaysDifference(reminder.due_date, referenceDateStr);
 
-    let dateNotificationType: NotificationType | null = null;
-    if (daysRemaining === 7) {
-      dateNotificationType = "due_7_days";
-    } else if (daysRemaining === 1) {
-      dateNotificationType = "due_1_day";
-    } else if (daysRemaining === 0) {
-      dateNotificationType = "due_today";
-    }
+    // Eligible window: daysRemaining >= 0 && daysRemaining <= daysBeforeWindow
+    if (daysRemaining >= 0 && daysRemaining <= daysBeforeWindow) {
+      let dateNotificationType: NotificationType | null = null;
+      if (daysRemaining === 0) {
+        dateNotificationType = "due_today";
+      } else if (daysRemaining === 1) {
+        dateNotificationType = "due_1_day";
+      } else {
+        dateNotificationType = "due_7_days";
+      }
 
-    if (dateNotificationType) {
-      const isAlreadyNotified = existingNotificationTypesForScheduledDate.has(dateNotificationType);
-      if (!isAlreadyNotified) {
+      if (dateNotificationType && !isSuppressed(dateNotificationType)) {
         candidates.push({
           reminderId: reminder.id,
           userId: reminder.user_id,
@@ -87,8 +105,12 @@ export function evaluateSingleReminder(
   }
 
   // 4. Mileage-based Reminder Evaluation
-  if (reminder.due_odometer !== null && reminder.due_odometer !== undefined) {
-    // Requires a valid vehicle current_odometer
+  if (
+    notifyByOdometer &&
+    reminder.due_odometer !== null &&
+    reminder.due_odometer !== undefined &&
+    odometerThreshold > 0
+  ) {
     if (
       vehicle &&
       vehicle.current_odometer !== null &&
@@ -96,18 +118,17 @@ export function evaluateSingleReminder(
     ) {
       const remainingKm = reminder.due_odometer - vehicle.current_odometer;
 
-      let mileageNotificationType: NotificationType | null = null;
-      if (remainingKm <= 0) {
-        mileageNotificationType = "mileage_due";
-      } else if (remainingKm <= 500) {
-        mileageNotificationType = "mileage_500";
-      } else if (remainingKm <= 1000) {
-        mileageNotificationType = "mileage_1000";
-      }
+      if (remainingKm <= odometerThreshold) {
+        let mileageNotificationType: NotificationType | null = null;
+        if (remainingKm <= 0) {
+          mileageNotificationType = "mileage_due";
+        } else if (remainingKm <= 500) {
+          mileageNotificationType = "mileage_500";
+        } else {
+          mileageNotificationType = "mileage_1000";
+        }
 
-      if (mileageNotificationType) {
-        const isAlreadyNotified = existingNotificationTypesForScheduledDate.has(mileageNotificationType);
-        if (!isAlreadyNotified) {
+        if (mileageNotificationType && !isSuppressed(mileageNotificationType)) {
           candidates.push({
             reminderId: reminder.id,
             userId: reminder.user_id,
@@ -155,6 +176,7 @@ export async function evaluateReminderNotifications(
 
     const { data: reminders, error: remindersError } = await remindersQuery;
     if (remindersError) {
+      console.error("[ReminderEvaluation] Error fetching reminders:", remindersError.message);
       return { data: null, error: `Failed to fetch reminders: ${remindersError.message}` };
     }
 
@@ -167,55 +189,75 @@ export async function evaluateReminderNotifications(
     const userIds = Array.from(new Set(reminders.map((r) => r.user_id)));
     const reminderIds = reminders.map((r) => r.id);
 
-    // 2. Fetch related vehicles
-    const { data: vehiclesData } = await supabase
+    // 2. Fetch related vehicles with error checking
+    const { data: vehiclesData, error: vehiclesError } = await supabase
       .from("vehicles")
       .select("*")
       .in("id", vehicleIds);
 
+    if (vehiclesError) {
+      console.error("[ReminderEvaluation] Error fetching vehicles:", vehiclesError.message);
+      return { data: null, error: `Failed to fetch vehicles: ${vehiclesError.message}` };
+    }
+
     const vehicleMap = new Map<string, Vehicle>();
     (vehiclesData || []).forEach((v) => vehicleMap.set(v.id, v as Vehicle));
 
-    // 3. Fetch related user_settings
-    const { data: settingsData } = await supabase
+    // 3. Fetch related user_settings with error checking
+    const { data: settingsData, error: settingsError } = await supabase
       .from("user_settings")
       .select("*")
       .in("user_id", userIds);
 
+    if (settingsError) {
+      console.error("[ReminderEvaluation] Error fetching user settings:", settingsError.message);
+      return { data: null, error: `Failed to fetch user settings: ${settingsError.message}` };
+    }
+
     const settingsMap = new Map<string, UserSettings>();
     (settingsData || []).forEach((s) => settingsMap.set(s.user_id, s as UserSettings));
 
-    // 4. Fetch notification history for deduplication
-    // Check reminder_notifications table
-    const { data: historyData } = await supabase
+    // 4. Fetch notification history (only sent notifications!)
+    const { data: historyData, error: historyError } = await supabase
       .from("reminder_notifications")
-      .select("reminder_id, notification_type, scheduled_for")
+      .select("reminder_id, notification_type, scheduled_for, status")
       .in("reminder_id", reminderIds)
-      .eq("scheduled_for", referenceDateStr)
       .eq("status", "sent");
 
-    // Map of reminder_id -> Set of notification_types recorded for referenceDateStr
-    const historyMap = new Map<string, Set<string>>();
+    if (historyError) {
+      console.error("[ReminderEvaluation] Error fetching notification history:", historyError.message);
+      return { data: null, error: `Failed to fetch notification history: ${historyError.message}` };
+    }
+
+    // Build history lookup structures
+    const hasAnySentMap = new Map<string, boolean>();
+    const todaySentTypesMap = new Map<string, Set<string>>();
+
     (historyData || []).forEach((h) => {
-      if (!historyMap.has(h.reminder_id)) {
-        historyMap.set(h.reminder_id, new Set());
+      hasAnySentMap.set(h.reminder_id, true);
+      if (h.scheduled_for === referenceDateStr) {
+        if (!todaySentTypesMap.has(h.reminder_id)) {
+          todaySentTypesMap.set(h.reminder_id, new Set());
+        }
+        todaySentTypesMap.get(h.reminder_id)!.add(h.notification_type);
       }
-      historyMap.get(h.reminder_id)!.add(h.notification_type);
     });
 
-    // 5. Evaluate all reminders against database state
+    // 5. Evaluate all reminders against current database state
     const allCandidates: NotificationCandidate[] = [];
 
     for (const reminder of reminders) {
       const vehicle = vehicleMap.get(reminder.vehicle_id) || null;
       const userSettings = settingsMap.get(reminder.user_id) || null;
-      const existingTypes = historyMap.get(reminder.id) || new Set();
+      const hasAnySent = hasAnySentMap.get(reminder.id) || false;
+      const sentForToday = todaySentTypesMap.get(reminder.id) || new Set();
 
       const candidates = evaluateSingleReminder({
         reminder,
         vehicle,
         userSettings,
-        existingNotificationTypesForScheduledDate: existingTypes,
+        hasAnySentNotification: hasAnySent,
+        sentNotificationTypesForToday: sentForToday,
         referenceDateStr,
       });
 
@@ -224,6 +266,7 @@ export async function evaluateReminderNotifications(
 
     return { data: allCandidates, error: null };
   } catch (err: any) {
+    console.error("[ReminderEvaluation] Unexpected exception:", err.message || err);
     return { data: null, error: err.message || "An unexpected error occurred during reminder evaluation." };
   }
 }
