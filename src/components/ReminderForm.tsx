@@ -3,9 +3,9 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, Bell } from "lucide-react";
+import { Loader2, ArrowLeft, Bell, Gauge, Info } from "lucide-react";
 import Link from "next/link";
 
 import { useVehicles } from "@/features/vehicles/hooks/vehicles";
@@ -14,7 +14,7 @@ import {
   useUpdateReminder,
   useReminder,
 } from "@/features/vehicles/hooks/use-reminders";
-import type { MaintenanceReminderInsert, MaintenanceReminderUpdate } from "@/lib/types";
+import type { MaintenanceReminderInsert, MaintenanceReminderUpdate, Vehicle } from "@/lib/types";
 
 const REMINDER_TYPES = [
   "Oil Change",
@@ -28,23 +28,45 @@ const REMINDER_TYPES = [
   "Other",
 ];
 
-const reminderSchema = z
-  .object({
-    vehicle_id: z.string().min(1, "Vehicle selection is required"),
-    title: z.string().min(1, "Title is required").max(100),
-    reminder_type: z.string().min(1, "Type is required"),
-    due_date: z.string().optional(),
-    due_odometer: z.preprocess(
-      (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
-      z.number().int().min(0, "Odometer cannot be negative").optional()
-    ),
-    description: z.string().max(500).optional(),
-    status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
-  })
-  .refine((data) => data.due_date || data.due_odometer, {
-    message: "Specify at least a due date or due odometer.",
-    path: ["due_date"],
-  });
+function createReminderSchema(selectedVehicle?: Vehicle) {
+  return z
+    .object({
+      vehicle_id: z.string().min(1, "Vehicle selection is required"),
+      title: z.string().min(1, "Title is required").max(100),
+      reminder_type: z.string().min(1, "Type is required"),
+      due_date: z.string().optional(),
+      due_odometer: z.preprocess(
+        (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
+        z.number().int().min(0, "Odometer cannot be negative").optional()
+      ),
+      description: z.string().max(500).optional(),
+      status: z.enum(["pending", "completed", "cancelled"]).default("pending"),
+    })
+    .superRefine((data, ctx) => {
+      if (!data.due_date && !data.due_odometer) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Specify at least a due date or due odometer.",
+          path: ["due_date"],
+        });
+      }
+
+      if (
+        data.due_odometer !== undefined &&
+        selectedVehicle &&
+        selectedVehicle.current_odometer !== null &&
+        selectedVehicle.current_odometer !== undefined
+      ) {
+        if (data.due_odometer <= selectedVehicle.current_odometer) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Due odometer must be greater than current vehicle odometer (${selectedVehicle.current_odometer.toLocaleString()} km).`,
+            path: ["due_odometer"],
+          });
+        }
+      }
+    });
+}
 
 type ReminderFormValues = {
   vehicle_id: string;
@@ -110,19 +132,37 @@ export function ReminderForm({ initialVehicleId, reminderId }: ReminderFormProps
   const isEditing = !!reminderId;
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors },
-  } = useForm<ReminderFormValues>({
-    resolver: zodResolver(reminderSchema) as any,
-    mode: "onBlur",
+  const form = useForm<ReminderFormValues>({
+    mode: "onChange",
     defaultValues: {
       vehicle_id: initialVehicleId || "",
       status: "pending",
     },
   });
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    control,
+    formState: { errors },
+  } = form;
+
+  const selectedVehicleId = useWatch({ control, name: "vehicle_id" });
+  const dueOdometerVal = useWatch({ control, name: "due_odometer" });
+
+  const selectedVehicle = useMemo(
+    () => vehicles.find((v) => v.id === selectedVehicleId),
+    [vehicles, selectedVehicleId]
+  );
+
+  // Dynamic Zod Resolver attached to dynamic selectedVehicle state
+  useEffect(() => {
+    // Re-trigger validation when selectedVehicle changes
+    if (dueOdometerVal) {
+      form.trigger("due_odometer");
+    }
+  }, [selectedVehicle, dueOdometerVal, form]);
 
   useEffect(() => {
     if (existingReminder) {
@@ -140,6 +180,18 @@ export function ReminderForm({ initialVehicleId, reminderId }: ReminderFormProps
 
   async function onSubmit(data: ReminderFormValues) {
     setServerError(null);
+
+    // Validate using dynamic schema with selected vehicle
+    const schema = createReminderSchema(selectedVehicle);
+    const parseResult = schema.safeParse(data);
+
+    if (!parseResult.success) {
+      const issue = parseResult.error.issues[0];
+      if (issue) {
+        form.setError(issue.path[0] as any, { message: issue.message });
+      }
+      return;
+    }
 
     try {
       if (isEditing && reminderId) {
@@ -180,6 +232,13 @@ export function ReminderForm({ initialVehicleId, reminderId }: ReminderFormProps
       </div>
     );
   }
+
+  const currentOdometer = selectedVehicle?.current_odometer;
+  const numDueOdometer = dueOdometerVal ? Number(dueOdometerVal) : undefined;
+  const remainingKm =
+    numDueOdometer !== undefined && currentOdometer !== null && currentOdometer !== undefined
+      ? numDueOdometer - currentOdometer
+      : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -263,14 +322,45 @@ export function ReminderForm({ initialVehicleId, reminderId }: ReminderFormProps
                 className={inputClass(!!errors.due_date)}
               />
             </Field>
+
             <Field label="Due Odometer (km)" optional error={errors.due_odometer?.message}>
               <input
                 {...register("due_odometer")}
                 type="number"
                 min={0}
-                placeholder="e.g. 60000"
+                placeholder={currentOdometer ? `e.g. ${currentOdometer + 5000}` : "e.g. 60000"}
                 className={inputClass(!!errors.due_odometer)}
               />
+
+              {/* Vehicle Odometer Helper & Validation Indicator */}
+              {selectedVehicle && (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                  {currentOdometer !== null && currentOdometer !== undefined ? (
+                    <span className="flex items-center gap-1 text-muted-foreground font-medium">
+                      <Gauge className="h-3.5 w-3.5 text-primary" />
+                      Current Odometer: <strong className="text-foreground">{currentOdometer.toLocaleString()} km</strong>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-amber-500">
+                      <Info className="h-3.5 w-3.5" /> No odometer logged for this vehicle yet
+                    </span>
+                  )}
+
+                  {remainingKm !== null && (
+                    <span
+                      className={`ml-auto font-semibold px-2 py-0.5 rounded ${
+                        remainingKm > 0
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : "bg-destructive/10 text-destructive"
+                      }`}
+                    >
+                      {remainingKm > 0
+                        ? `+${remainingKm.toLocaleString()} km remaining`
+                        : `${remainingKm.toLocaleString()} km (invalid)`}
+                    </span>
+                  )}
+                </div>
+              )}
             </Field>
           </div>
 

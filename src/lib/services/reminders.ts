@@ -23,7 +23,6 @@ export async function getReminders(
   let query = supabase
     .from("maintenance_reminders")
     .select("*")
-    .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   if (vehicleId) {
@@ -55,12 +54,27 @@ export async function createReminder(
   userId: string,
   payload: MaintenanceReminderInsert
 ): Promise<ApiResponse<MaintenanceReminder>> {
-  // Fetch vehicle details for activity logging
+  // Fetch vehicle details for activity logging & odometer validation
   const { data: vehicleRow } = await supabase
     .from("vehicles")
-    .select("make, model")
+    .select("make, model, current_odometer")
     .eq("id", payload.vehicle_id)
     .maybeSingle();
+
+  if (
+    payload.due_odometer !== null &&
+    payload.due_odometer !== undefined &&
+    vehicleRow &&
+    vehicleRow.current_odometer !== null &&
+    vehicleRow.current_odometer !== undefined
+  ) {
+    if (payload.due_odometer <= vehicleRow.current_odometer) {
+      return {
+        data: null,
+        error: `Due odometer (${payload.due_odometer.toLocaleString()} km) must be greater than current vehicle odometer (${vehicleRow.current_odometer.toLocaleString()} km).`,
+      };
+    }
+  }
 
   const vehicleName = vehicleRow ? `${vehicleRow.make} ${vehicleRow.model}` : "vehicle";
 
@@ -99,6 +113,26 @@ export async function updateReminder(
   id: string,
   payload: MaintenanceReminderUpdate
 ): Promise<ApiResponse<MaintenanceReminder>> {
+  if (payload.vehicle_id && payload.due_odometer !== null && payload.due_odometer !== undefined) {
+    const { data: vehicleRow } = await supabase
+      .from("vehicles")
+      .select("current_odometer")
+      .eq("id", payload.vehicle_id)
+      .maybeSingle();
+
+    if (
+      vehicleRow &&
+      vehicleRow.current_odometer !== null &&
+      vehicleRow.current_odometer !== undefined &&
+      payload.due_odometer <= vehicleRow.current_odometer
+    ) {
+      return {
+        data: null,
+        error: `Due odometer (${payload.due_odometer.toLocaleString()} km) must be greater than current vehicle odometer (${vehicleRow.current_odometer.toLocaleString()} km).`,
+      };
+    }
+  }
+
   const { data, error } = await supabase
     .from("maintenance_reminders")
     .update(payload)

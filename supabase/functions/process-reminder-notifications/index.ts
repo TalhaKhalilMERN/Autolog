@@ -320,12 +320,15 @@ Deno.serve(async (req) => {
         vehicle?.current_odometer !== null &&
         vehicle?.current_odometer !== undefined
       ) {
-        const remainingKm = reminder.due_odometer - vehicle.current_odometer;
-        if (remainingKm <= odometerThreshold) {
+        const remainingKm =
+          reminder.due_odometer - vehicle.current_odometer;
+        console.log("remaining km:>>", remainingKm, " and odomter thershold:>>", odometerThreshold);
+        if (remainingKm >= 0 && remainingKm <= odometerThreshold) {
           let type = null;
           if (remainingKm <= 0) type = "mileage_due";
           else if (remainingKm <= 500) type = "mileage_500";
           else type = "mileage_1000";
+          console.log("mileage type", type);
 
           if (type && !isSuppressed(type)) {
             candidates.push({
