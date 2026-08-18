@@ -16,23 +16,69 @@ import { logActivity } from "@/lib/services/activities";
  * Automatically logs activities on CRUD events.
  */
 
+export interface GetRemindersOptions {
+  vehicleId?: string;
+  search?: string;
+  status?: string;
+  sort?: "created_desc" | "created_asc" | "due_asc" | "due_desc";
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedRemindersResponse {
+  reminders: MaintenanceReminder[];
+  totalCount: number;
+}
+
 export async function getReminders(
   supabase: SupabaseClient,
-  vehicleId?: string
-): Promise<ApiResponse<MaintenanceReminder[]>> {
+  options: GetRemindersOptions = {}
+): Promise<ApiResponse<PaginatedRemindersResponse>> {
+  const {
+    vehicleId,
+    search,
+    status,
+    sort = "created_desc",
+    page = 1,
+    limit = 10,
+  } = options;
+
+  const offset = (page - 1) * limit;
+
   let query = supabase
     .from("maintenance_reminders")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select("*", { count: "exact" });
 
-  if (vehicleId) {
-    query = query.eq("vehicle_id", vehicleId);
+  if (vehicleId) query = query.eq("vehicle_id", vehicleId);
+  if (status && status !== "all") query = query.eq("status", status);
+  if (search && search.trim()) {
+    query = query.ilike("title", `%${search.trim()}%`);
   }
 
-  const { data, error } = await query;
+  // Sorting
+  if (sort === "created_desc") {
+    query = query.order("created_at", { ascending: false });
+  } else if (sort === "created_asc") {
+    query = query.order("created_at", { ascending: true });
+  } else if (sort === "due_asc") {
+    query = query.order("due_date", { ascending: true, nullsFirst: false });
+  } else if (sort === "due_desc") {
+    query = query.order("due_date", { ascending: false, nullsFirst: false });
+  }
+
+  // Pagination
+  query = query.range(offset, offset + limit - 1);
+
+  const { data, error, count } = await query;
 
   if (error) return { data: null, error: error.message };
-  return { data: data as MaintenanceReminder[], error: null };
+  return {
+    data: {
+      reminders: data as MaintenanceReminder[],
+      totalCount: count ?? 0,
+    },
+    error: null,
+  };
 }
 
 export async function getReminder(

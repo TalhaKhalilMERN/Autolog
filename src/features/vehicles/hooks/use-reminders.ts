@@ -22,8 +22,51 @@ export function useReminders(vehicleId?: string) {
         throw new Error(errorJson.error || "Failed to fetch reminders");
       }
       const json = await res.json();
-      return json.data;
+      // Support both paginated and flat response shapes
+      return json.data?.reminders ?? json.data ?? [];
     },
+  });
+}
+
+export interface UsePaginatedRemindersOptions {
+  page: number;
+  limit: number;
+  search?: string;
+  vehicleId?: string;
+  status?: string;
+  sort?: "created_desc" | "created_asc" | "due_asc" | "due_desc";
+}
+
+export interface PaginatedRemindersResponse {
+  reminders: MaintenanceReminder[];
+  totalCount: number;
+}
+
+/**
+ * Hook to fetch paginated + server-filtered maintenance reminders.
+ * Query key: ["reminders", "paginated", options]
+ */
+export function usePaginatedReminders(options: UsePaginatedRemindersOptions) {
+  return useQuery<PaginatedRemindersResponse, Error>({
+    queryKey: ["reminders", "paginated", options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(options.page));
+      params.set("limit", String(options.limit));
+      if (options.search) params.set("search", options.search);
+      if (options.vehicleId && options.vehicleId !== "all") params.set("vehicleId", options.vehicleId);
+      if (options.status && options.status !== "all") params.set("status", options.status);
+      if (options.sort) params.set("sort", options.sort);
+
+      const res = await fetch(`/api/reminders?${params.toString()}`);
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || "Failed to fetch reminders");
+      }
+      const json = await res.json();
+      return json.data as PaginatedRemindersResponse;
+    },
+    placeholderData: (previousData) => previousData,
   });
 }
 

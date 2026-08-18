@@ -23,8 +23,13 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const vehicleId = searchParams.get("vehicleId") || undefined;
+  const search = searchParams.get("search") || undefined;
+  const status = searchParams.get("status") || undefined;
+  const sort = (searchParams.get("sort") as any) || "created_desc";
+  const page = parseInt(searchParams.get("page") || "1", 10);
+  const limit = parseInt(searchParams.get("limit") || "10", 10);
 
-  const result = await getReminders(supabase, vehicleId);
+  const result = await getReminders(supabase, { vehicleId, search, status, sort, page, limit });
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 });
