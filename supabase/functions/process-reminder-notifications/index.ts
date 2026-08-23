@@ -320,30 +320,43 @@ Deno.serve(async (req) => {
         vehicle?.current_odometer !== null &&
         vehicle?.current_odometer !== undefined
       ) {
+
         const remainingKm =
           reminder.due_odometer - vehicle.current_odometer;
-        console.log("remaining km:>>", remainingKm, " and odomter thershold:>>", odometerThreshold);
-        if (remainingKm >= 0 && remainingKm <= odometerThreshold) {
-          let type = null;
-          if (remainingKm <= 0) type = "mileage_due";
-          else if (remainingKm <= 500) type = "mileage_500";
-          else type = "mileage_1000";
-          console.log("mileage type", type);
 
-          if (type && !isSuppressed(type)) {
-            candidates.push({
-              reminderId: reminder.id,
-              userId: reminder.user_id,
-              vehicleId: reminder.vehicle_id,
-              title: reminder.title,
-              notificationType: type,
-              scheduledFor: referenceDateStr,
-              dueDate: reminder.due_date,
-              dueOdometer: reminder.due_odometer,
-              currentOdometer: vehicle.current_odometer,
-            });
-          }
+        console.log(
+          "remaining km:>>",
+          remainingKm,
+          "and odometer threshold:>>",
+          odometerThreshold
+        );
+
+        let type = null;
+
+        if (remainingKm <= 0) {
+          type = "mileage_due";
+        } else if (remainingKm <= 500) {
+          type = "mileage_500";
+        } else if (remainingKm <= odometerThreshold) {
+          type = "mileage_1000";
         }
+
+        console.log("mileage type:", type);
+
+        if (type && !isSuppressed(type)) {
+          candidates.push({
+            reminderId: reminder.id,
+            userId: reminder.user_id,
+            vehicleId: reminder.vehicle_id,
+            title: reminder.title,
+            notificationType: type,
+            scheduledFor: referenceDateStr,
+            dueDate: reminder.due_date,
+            dueOdometer: reminder.due_odometer,
+            currentOdometer: vehicle.current_odometer,
+          });
+        }
+
       }
     }
 
@@ -399,6 +412,50 @@ Deno.serve(async (req) => {
 
           if (upsertErr) {
             console.error(`[EdgeFunction] Error upserting sent notification: ${upsertErr.message}`);
+          }
+
+          // Log activity — non-blocking: failure must NOT re-send the email or mark the notification as failed.
+          try {
+            const activityPayload = {
+              user_id: candidate.userId,
+              entity_type: "reminder",
+              entity_id: candidate.reminderId,
+              action: "notification_sent",
+              title: "Reminder Email Sent",
+              description: `Email notification sent for reminder "${candidate.title}" on ${vehicleName}.`,
+              metadata: {
+                icon_type: "reminder",
+                notification_type: candidate.notificationType,
+                reminder_id: candidate.reminderId,
+                vehicle_id: candidate.vehicleId,
+                vehicle_name: vehicleName,
+                scheduled_for: candidate.scheduledFor,
+                resend_message_id: emailRes.data.id,
+                recipient_email: recipientEmail,
+              },
+            };
+
+            // Mirror the logActivity helper pattern: first try with icon_type column, fall back without
+            const { error: activityErr } = await supabase.from("activity_logs").insert({
+              ...activityPayload,
+              icon_type: "reminder",
+            });
+
+            if (activityErr) {
+              if (
+                activityErr.message?.includes("icon_type") ||
+                activityErr.code === "PGRST204"
+              ) {
+                const { error: retryErr } = await supabase.from("activity_logs").insert(activityPayload);
+                if (retryErr) {
+                  console.error(`[EdgeFunction] Activity log retry failed for reminder ${candidate.reminderId}:`, retryErr.message);
+                }
+              } else {
+                console.error(`[EdgeFunction] Activity log insert failed for reminder ${candidate.reminderId}:`, activityErr.message);
+              }
+            }
+          } catch (activityEx: any) {
+            console.error(`[EdgeFunction] Activity log exception for reminder ${candidate.reminderId}:`, activityEx.message);
           }
 
           outcomes.push({
