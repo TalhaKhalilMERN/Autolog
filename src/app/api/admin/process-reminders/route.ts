@@ -137,7 +137,7 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
 
   // Scenario 5: 7-day window + daily + reminder inside window -> candidate generated for current date
   {
-    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const dailySettings: UserSettings = { ...baseSettings, notification_frequency: "daily" };
     const candidates = evaluateSingleReminder({
       reminder: baseReminder,
       vehicle: baseVehicle,
@@ -157,7 +157,7 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
 
   // Scenario 6: Daily notification evaluated twice on same day -> second evaluation skipped
   {
-    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const dailySettings: UserSettings = { ...baseSettings, notification_frequency: "daily" };
     const candidates = evaluateSingleReminder({
       reminder: baseReminder,
       vehicle: baseVehicle,
@@ -177,7 +177,8 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
 
   // Scenario 7: Daily notification evaluated on following day -> candidate generated for new date
   {
-    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const notification_frequency: "once" | "daily" = "daily";
+    const dailySettings = { ...baseSettings, notification_frequency };
     const candidates = evaluateSingleReminder({
       reminder: baseReminder,
       vehicle: baseVehicle,
@@ -197,7 +198,7 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
 
   // Scenario 8: User changes daily -> once -> future daily notifications stop if previous notification sent
   {
-    const onceSettings = { ...baseSettings, notification_frequency: "once" };
+    const onceSettings: UserSettings = { ...baseSettings, notification_frequency: "once" };
     const candidates = evaluateSingleReminder({
       reminder: baseReminder,
       vehicle: baseVehicle,
@@ -217,7 +218,7 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
 
   // Scenario 9: User changes once -> daily -> daily notifications resume from current date
   {
-    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const dailySettings: UserSettings = { ...baseSettings, notification_frequency: "daily" };
     const candidates = evaluateSingleReminder({
       reminder: baseReminder,
       vehicle: baseVehicle,
@@ -333,7 +334,7 @@ function runProcessorUnitTestSuite(): { passedCount: number; totalCount: number;
 
   // Scenario 15: Odometer daily evaluated twice on same date -> only 1 email/candidate
   {
-    const dailySettings = { ...baseSettings, notification_frequency: "daily" };
+    const dailySettings: UserSettings = { ...baseSettings, notification_frequency: "daily" };
     const mileageReminder: MaintenanceReminder = { ...baseReminder, due_date: null, due_odometer: 45800 };
     const candidates = evaluateSingleReminder({
       reminder: mileageReminder,

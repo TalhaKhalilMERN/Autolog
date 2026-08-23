@@ -26,6 +26,7 @@ export interface SingleReminderEvaluationParams {
   hasAnySentNotification?: boolean;
   sentNotificationTypesForToday?: Set<string>;
   referenceDateStr?: string; // YYYY-MM-DD
+  existingNotificationTypesForScheduledDate?: Set<string>;
 }
 
 /**
