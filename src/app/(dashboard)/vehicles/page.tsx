@@ -7,14 +7,14 @@ import {
   Car,
   Search,
   Filter,
-  ChevronLeft,
-  ChevronRight,
   X,
   Gauge,
   ArrowUpDown,
-  Layers,
+  ExternalLink,
 } from "lucide-react";
 import { usePaginatedVehicles } from "@/features/vehicles/hooks/vehicles";
+import { ViewToggle, ViewMode } from "@/components/ui/ViewToggle";
+import { Pagination } from "@/components/ui/Pagination";
 import VehiclesLoading from "./loading";
 
 const FUEL_TYPES = [
@@ -27,18 +27,21 @@ const FUEL_TYPES = [
   "LPG",
 ];
 
-const PAGE_SIZE_OPTIONS = [6, 12, 24, 48];
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 export default function VehiclesPage() {
+  // View mode state (Default view MUST be list)
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+
   // Query parameters state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedFuelType, setSelectedFuelType] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "name" | "odometer">("newest");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(6);
+  const [pageSize, setPageSize] = useState(10);
 
-  // Debounce search input (300ms) for efficient server queries
+  // Debounce search input (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
@@ -60,9 +63,12 @@ export default function VehiclesPage() {
   const totalCount = data?.totalCount ?? 0;
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
-  const validCurrentPage = Math.min(currentPage, totalPages);
-  const startIndex = totalCount === 0 ? 0 : (validCurrentPage - 1) * pageSize + 1;
-  const endIndex = Math.min(validCurrentPage * pageSize, totalCount);
+  // Auto-adjust page if current page exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   // Filter change handlers
   const handleFuelTypeChange = (val: string) => {
@@ -121,17 +127,20 @@ export default function VehiclesPage() {
               : `${totalCount} vehicle${totalCount !== 1 ? "s" : ""} in your fleet`}
           </p>
         </div>
-        <Link
-          href="/vehicles/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          Add vehicle
-        </Link>
+        <div className="flex items-center gap-3">
+          <ViewToggle viewMode={viewMode} onViewChange={setViewMode} />
+          <Link
+            href="/vehicles/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Add vehicle
+          </Link>
+        </div>
       </div>
 
-      {/* Search, Filter & Page Size Bar */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Search & Filter Bar */}
+      <div className="grid gap-3 sm:grid-cols-3">
         {/* Search Input */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -187,22 +196,6 @@ export default function VehiclesPage() {
             <option value="odometer">Highest Mileage</option>
           </select>
         </div>
-
-        {/* Page Size Selector */}
-        <div className="relative flex items-center gap-2">
-          <Layers className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <select
-            value={pageSize}
-            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size} per page
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       {/* Empty State (0 total user vehicles) */}
@@ -244,106 +237,133 @@ export default function VehiclesPage() {
         </div>
       )}
 
-      {/* Vehicles Grid */}
+      {/* Vehicles View (List / Grid) */}
       {vehicles.length > 0 && (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {vehicles.map((v) => (
-              <Link
-                key={v.id}
-                href={`/vehicles/${v.id}`}
-                className="group relative flex flex-col justify-between gap-4 overflow-hidden rounded-xl border border-border bg-card p-5 shadow-elevated transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg"
-              >
-                {/* Card header */}
-                <div className="flex items-start justify-between">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
-                    <Car className="h-6 w-6 text-primary" />
+          {viewMode === "list" ? (
+            /* LIST VIEW LAYOUT */
+            <div className="space-y-3">
+              {vehicles.map((v) => (
+                <div
+                  key={v.id}
+                  className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-elevated transition-all hover:border-primary/30 hover:shadow-lg sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                      <Car className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/vehicles/${v.id}`}
+                          className="font-semibold text-foreground hover:text-primary transition-colors text-base"
+                        >
+                          {v.year} {v.make} {v.model}
+                        </Link>
+                        {v.fuel_type && (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {v.fuel_type}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {v.variant && <span>Variant: {v.variant}</span>}
+                        {v.registration_number ? (
+                          <span className="font-mono font-medium uppercase tracking-wide text-foreground/80">
+                            Reg: {v.registration_number}
+                          </span>
+                        ) : (
+                          <span>No reg</span>
+                        )}
+                        {v.current_odometer !== null && v.current_odometer !== undefined && (
+                          <span className="flex items-center gap-1 font-medium text-foreground/80">
+                            <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+                            {v.current_odometer.toLocaleString()} km
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  {v.fuel_type && (
-                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                      {v.fuel_type}
-                    </span>
-                  )}
-                </div>
 
-                {/* Vehicle name & variant */}
-                <div>
-                  <p className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                    {v.year} {v.make} {v.model}
-                  </p>
-                  {v.variant && (
-                    <p className="mt-0.5 text-sm text-muted-foreground">{v.variant}</p>
-                  )}
+                  <div className="flex items-center gap-2 border-t border-border/40 pt-2 sm:border-t-0 sm:pt-0">
+                    <Link
+                      href={`/vehicles/${v.id}`}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      View Details
+                    </Link>
+                  </div>
                 </div>
+              ))}
+            </div>
+          ) : (
+            /* GRID VIEW LAYOUT */
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {vehicles.map((v) => (
+                <Link
+                  key={v.id}
+                  href={`/vehicles/${v.id}`}
+                  className="group relative flex flex-col justify-between gap-4 overflow-hidden rounded-xl border border-border bg-card p-5 shadow-elevated transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg"
+                >
+                  {/* Card header */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                      <Car className="h-6 w-6 text-primary" />
+                    </div>
+                    {v.fuel_type && (
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                        {v.fuel_type}
+                      </span>
+                    )}
+                  </div>
 
-                {/* Footer meta */}
-                <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs text-muted-foreground">
-                  {v.registration_number ? (
-                    <span className="font-mono font-medium uppercase tracking-wide text-foreground/80">
-                      {v.registration_number}
-                    </span>
-                  ) : (
-                    <span>No registration</span>
-                  )}
-                  {v.current_odometer !== null && v.current_odometer !== undefined ? (
-                    <span className="flex items-center gap-1 font-medium text-foreground/80">
-                      <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
-                      {v.current_odometer.toLocaleString()} km
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                      View details →
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
+                  {/* Vehicle name & variant */}
+                  <div>
+                    <p className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                      {v.year} {v.make} {v.model}
+                    </p>
+                    {v.variant && (
+                      <p className="mt-0.5 text-sm text-muted-foreground">{v.variant}</p>
+                    )}
+                  </div>
+
+                  {/* Footer meta */}
+                  <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs text-muted-foreground">
+                    {v.registration_number ? (
+                      <span className="font-mono font-medium uppercase tracking-wide text-foreground/80">
+                        {v.registration_number}
+                      </span>
+                    ) : (
+                      <span>No registration</span>
+                    )}
+                    {v.current_odometer !== null && v.current_odometer !== undefined ? (
+                      <span className="flex items-center gap-1 font-medium text-foreground/80">
+                        <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+                        {v.current_odometer.toLocaleString()} km
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                        View details →
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
 
           {/* Pagination Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border/60 pt-4">
-            <p className="text-xs text-muted-foreground">
-              Showing <span className="font-semibold text-foreground">{startIndex}</span> to{" "}
-              <span className="font-semibold text-foreground">{endIndex}</span> of{" "}
-              <span className="font-semibold text-foreground">{totalCount}</span> vehicles
-            </p>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={validCurrentPage === 1}
-                className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-
-              <div className="flex items-center gap-1 px-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`h-8 w-8 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      pageNum === validCurrentPage
-                        ? "bg-primary text-primary-foreground shadow-glow"
-                        : "border border-border bg-card text-foreground hover:bg-accent"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={validCurrentPage === totalPages}
-                className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={handlePageSizeChange}
+            itemName="vehicles"
+          />
         </div>
       )}
     </div>

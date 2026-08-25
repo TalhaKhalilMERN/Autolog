@@ -13,17 +13,16 @@ import {
   Car,
   Plus,
   ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Layers,
   X,
 } from "lucide-react";
 import { usePaginatedReminders } from "@/features/vehicles/hooks/use-reminders";
 import { useVehicles } from "@/features/vehicles/hooks/vehicles";
 import { DeleteReminderButton } from "@/components/DeleteReminderButton";
+import { ViewToggle, ViewMode } from "@/components/ui/ViewToggle";
+import { Pagination } from "@/components/ui/Pagination";
 
 const STATUSES = ["pending", "completed", "cancelled"] as const;
-const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 type SortOption = "created_desc" | "created_asc" | "due_asc" | "due_desc";
 
@@ -48,11 +47,17 @@ export default function RemindersPage() {
 
   const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
 
+  // View Mode state (Default: List)
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+
+  // Filter & Search states
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState(initialVehicleId);
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [sortOption, setSortOption] = useState<SortOption>("created_desc");
+
+  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -77,14 +82,23 @@ export default function RemindersPage() {
   const reminders = data?.reminders ?? [];
   const totalCount = data?.totalCount ?? 0;
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
-  const validCurrentPage = Math.min(currentPage, totalPages);
-  const startIndex = totalCount === 0 ? 0 : (validCurrentPage - 1) * pageSize + 1;
-  const endIndex = Math.min(validCurrentPage * pageSize, totalCount);
+
+  // Auto-adjust page if current page exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const vehicleMap = Object.fromEntries(vehicles.map((v) => [v.id, v]));
 
   const handleFilterChange = (fn: () => void) => {
     fn();
+    setCurrentPage(1);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
     setCurrentPage(1);
   };
 
@@ -143,13 +157,16 @@ export default function RemindersPage() {
               : `${totalCount} reminder${totalCount !== 1 ? "s" : ""} total`}
           </p>
         </div>
-        <Link
-          href={addHref}
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          Add Reminder
-        </Link>
+        <div className="flex items-center gap-3">
+          <ViewToggle viewMode={viewMode} onViewChange={setViewMode} />
+          <Link
+            href={addHref}
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Add Reminder
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -263,156 +280,183 @@ export default function RemindersPage() {
         </div>
       )}
 
-      {/* Reminder List + Pagination */}
+      {/* Reminder List / Grid + Pagination */}
       {reminders.length > 0 && (
         <div className="space-y-6">
-          <div className="space-y-3">
-            {reminders.map((reminder) => {
-              const v = vehicleMap[reminder.vehicle_id];
-              const vehicleName = v ? `${v.year} ${v.make} ${v.model}` : "Unknown Vehicle";
-              const statusCls =
-                reminder.status === "completed"
-                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400"
-                  : reminder.status === "cancelled"
-                  ? "bg-muted text-muted-foreground border-border/60"
-                  : "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400";
+          {viewMode === "list" ? (
+            /* LIST VIEW */
+            <div className="space-y-3">
+              {reminders.map((reminder) => {
+                const v = vehicleMap[reminder.vehicle_id];
+                const vehicleName = v ? `${v.year} ${v.make} ${v.model}` : "Unknown Vehicle";
+                const statusCls =
+                  reminder.status === "completed"
+                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400"
+                    : reminder.status === "cancelled"
+                    ? "bg-muted text-muted-foreground border-border/60"
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400";
 
-              return (
-                <div
-                  key={reminder.id}
-                  className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-elevated transition-all hover:border-primary/30 hover:shadow-lg sm:p-5"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="flex items-start gap-3.5">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
-                        <Bell className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-sm font-semibold text-foreground">{reminder.title}</h4>
-                          <span className="rounded bg-muted px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            {reminder.reminder_type}
-                          </span>
-                          <span className={`rounded-full border px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider ${statusCls}`}>
-                            {reminder.status}
-                          </span>
+                return (
+                  <div
+                    key={reminder.id}
+                    className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-elevated transition-all hover:border-primary/30 hover:shadow-lg sm:p-5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex items-start gap-3.5">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                          <Bell className="h-5 w-5" />
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1 font-medium text-foreground/80">
-                            <Car className="h-3.5 w-3.5 text-primary" />
-                            {vehicleName}
-                          </span>
-                          {reminder.due_date && (
-                            <span className="flex items-center gap-1">
-                              <Calendar className="h-3.5 w-3.5" />
-                              Due {new Date(reminder.due_date).toLocaleDateString(undefined, {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                                timeZone: "UTC",
-                              })}
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm font-semibold text-foreground">{reminder.title}</h4>
+                            <span className="rounded bg-muted px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              {reminder.reminder_type}
                             </span>
-                          )}
-                          {reminder.due_odometer !== null && reminder.due_odometer !== undefined && (
-                            <span className="flex items-center gap-1">
-                              <Gauge className="h-3.5 w-3.5" />
-                              Due {reminder.due_odometer.toLocaleString()} km
+                            <span className={`rounded-full border px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider ${statusCls}`}>
+                              {reminder.status}
                             </span>
-                          )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1 font-medium text-foreground/80">
+                              <Car className="h-3.5 w-3.5 text-primary" />
+                              {vehicleName}
+                            </span>
+                            {reminder.due_date && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3.5 w-3.5" />
+                                Due {new Date(reminder.due_date).toLocaleDateString(undefined, {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  timeZone: "UTC",
+                                })}
+                              </span>
+                            )}
+                            {reminder.due_odometer !== null && reminder.due_odometer !== undefined && (
+                              <span className="flex items-center gap-1">
+                                <Gauge className="h-3.5 w-3.5" />
+                                Due {reminder.due_odometer.toLocaleString()} km
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {reminder.description && (
-                    <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2.5 border border-border/40 leading-relaxed">
-                      {reminder.description}
-                    </p>
-                  )}
+                    {reminder.description && (
+                      <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2.5 border border-border/40 leading-relaxed">
+                        {reminder.description}
+                      </p>
+                    )}
 
-                  <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-2">
-                    <Link
-                      href={`/reminders/${reminder.id}/edit`}
-                      className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </Link>
-                    <DeleteReminderButton reminderId={reminder.id} title={reminder.title} />
+                    <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-2">
+                      <Link
+                        href={`/reminders/${reminder.id}/edit`}
+                        className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Link>
+                      <DeleteReminderButton reminderId={reminder.id} title={reminder.title} />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* GRID VIEW */
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {reminders.map((reminder) => {
+                const v = vehicleMap[reminder.vehicle_id];
+                const vehicleName = v ? `${v.year} ${v.make} ${v.model}` : "Unknown Vehicle";
+                const statusCls =
+                  reminder.status === "completed"
+                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400"
+                    : reminder.status === "cancelled"
+                    ? "bg-muted text-muted-foreground border-border/60"
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400";
+
+                return (
+                  <div
+                    key={reminder.id}
+                    className="flex flex-col justify-between gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-elevated transition-all hover:border-primary/30 hover:shadow-lg"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                          <Bell className="h-5 w-5" />
+                        </div>
+                        <span className={`rounded-full border px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider ${statusCls}`}>
+                          {reminder.status}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <h4 className="text-base font-semibold text-foreground">{reminder.title}</h4>
+                          <span className="rounded bg-muted px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {reminder.reminder_type}
+                          </span>
+                        </div>
+                        <p className="mt-1 flex items-center gap-1 text-xs font-medium text-foreground/80">
+                          <Car className="h-3.5 w-3.5 text-primary" />
+                          {vehicleName}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1 border-t border-border/40">
+                        {reminder.due_date && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            Due {new Date(reminder.due_date).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              timeZone: "UTC",
+                            })}
+                          </span>
+                        )}
+                        {reminder.due_odometer !== null && reminder.due_odometer !== undefined && (
+                          <span className="flex items-center gap-1">
+                            <Gauge className="h-3.5 w-3.5" />
+                            Due {reminder.due_odometer.toLocaleString()} km
+                          </span>
+                        )}
+                      </div>
+
+                      {reminder.description && (
+                        <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2 border border-border/40 leading-relaxed line-clamp-2">
+                          {reminder.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-3">
+                      <Link
+                        href={`/reminders/${reminder.id}/edit`}
+                        className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent transition-all cursor-pointer"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Link>
+                      <DeleteReminderButton reminderId={reminder.id} title={reminder.title} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Pagination Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border/60 pt-4">
-            <div className="flex items-center gap-3">
-              <p className="text-xs text-muted-foreground">
-                Showing{" "}
-                <span className="font-semibold text-foreground">{startIndex}</span> to{" "}
-                <span className="font-semibold text-foreground">{endIndex}</span> of{" "}
-                <span className="font-semibold text-foreground">{totalCount}</span> reminders
-              </p>
-
-              {/* Page Size Selector */}
-              <div className="relative">
-                <Layers className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <select
-                  value={pageSize}
-                  onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-                  className="appearance-none rounded-lg border border-border bg-card pl-7 pr-6 py-1.5 text-xs text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
-                >
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <option key={size} value={size}>
-                      {size} / page
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={validCurrentPage === 1}
-                className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-
-              <div className="flex items-center gap-1 px-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => {
-                    // Show at most 5 page buttons centred on current page
-                    return Math.abs(p - validCurrentPage) <= 2;
-                  })
-                  .map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`h-8 w-8 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        pageNum === validCurrentPage
-                          ? "bg-primary text-primary-foreground shadow-glow"
-                          : "border border-border bg-card text-foreground hover:bg-accent"
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
-              </div>
-
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={validCurrentPage === totalPages}
-                className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={handlePageSizeChange}
+            itemName="reminders"
+          />
         </div>
       )}
     </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Plus,
   Fuel,
@@ -16,6 +17,8 @@ import {
 import { useFuelLogs } from "@/features/vehicles/hooks/use-fuel-logs";
 import { useVehicles } from "@/features/vehicles/hooks/vehicles";
 import { DeleteFuelLogButton } from "@/components/DeleteFuelLogButton";
+import { ViewToggle, ViewMode } from "@/components/ui/ViewToggle";
+import { Pagination } from "@/components/ui/Pagination";
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse rounded-md bg-muted/60 ${className ?? ""}`} />;
@@ -49,8 +52,7 @@ function FuelLogsSkeleton() {
 }
 
 const FUEL_TYPES = ["Petrol", "Diesel", "Electric", "Hybrid", "Plugin Hybrid", "CNG", "LPG"];
-
-import { useSearchParams } from "next/navigation";
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 export default function FuelLogsPage() {
   const searchParams = useSearchParams();
@@ -59,30 +61,32 @@ export default function FuelLogsPage() {
   const { data: fuelLogs = [], isLoading: logsLoading, error: logsError } = useFuelLogs();
   const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
 
+  // View Mode state (Default: List)
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(initialVehicleId);
   const [selectedFuelType, setSelectedFuelType] = useState<string>("all");
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const vehicleMap = useMemo(() => {
     return Object.fromEntries(vehicles.map((v) => [v.id, v]));
   }, [vehicles]);
 
-  // Filter and sort logs (Newest first by date, then created_at)
+  // Filter and sort logs (Newest first by date)
   const filteredLogs = useMemo(() => {
     return fuelLogs
       .filter((log) => {
-        // Vehicle filter
         if (selectedVehicleId !== "all" && log.vehicle_id !== selectedVehicleId) {
           return false;
         }
-
-        // Fuel type filter
         if (selectedFuelType !== "all" && log.fuel_type !== selectedFuelType) {
           return false;
         }
-
-        // Search term (station, notes, vehicle make/model)
         if (searchTerm.trim()) {
           const term = searchTerm.toLowerCase();
           const vehicle = vehicleMap[log.vehicle_id];
@@ -100,11 +104,36 @@ export default function FuelLogsPage() {
             return false;
           }
         }
-
         return true;
       })
       .sort((a, b) => new Date(b.log_date).getTime() - new Date(a.log_date).getTime());
   }, [fuelLogs, selectedVehicleId, selectedFuelType, searchTerm, vehicleMap]);
+
+  const totalCount = filteredLogs.length;
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+  // Auto-adjust page if current page exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const handleFilterChange = (fn: () => void) => {
+    fn();
+    setCurrentPage(1);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  };
+
+  const paginatedLogs = useMemo(() => {
+    const validPage = Math.min(Math.max(1, currentPage), totalPages);
+    const start = (validPage - 1) * pageSize;
+    return filteredLogs.slice(start, start + pageSize);
+  }, [filteredLogs, currentPage, pageSize, totalPages]);
 
   const isLoading = logsLoading || vehiclesLoading;
 
@@ -138,13 +167,16 @@ export default function FuelLogsPage() {
               : `${fuelLogs.length} fuel log${fuelLogs.length !== 1 ? "s" : ""} recorded`}
           </p>
         </div>
-        <Link
-          href="/fuel-logs/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px"
-        >
-          <Plus className="h-4 w-4" />
-          Add Fuel Log
-        </Link>
+        <div className="flex items-center gap-3">
+          <ViewToggle viewMode={viewMode} onViewChange={setViewMode} />
+          <Link
+            href="/fuel-logs/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Add Fuel Log
+          </Link>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -157,7 +189,7 @@ export default function FuelLogsPage() {
               type="text"
               placeholder="Search station, notes..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleFilterChange(() => setSearchTerm(e.target.value))}
               className="w-full rounded-lg border border-border bg-background pl-9 pr-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
             />
           </div>
@@ -167,8 +199,8 @@ export default function FuelLogsPage() {
             <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <select
               value={selectedVehicleId}
-              onChange={(e) => setSelectedVehicleId(e.target.value)}
-              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-3.5 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
+              onChange={(e) => handleFilterChange(() => setSelectedVehicleId(e.target.value))}
+              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-3.5 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
             >
               <option value="all">All Vehicles</option>
               {vehicles.map((v) => (
@@ -184,8 +216,8 @@ export default function FuelLogsPage() {
             <Fuel className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <select
               value={selectedFuelType}
-              onChange={(e) => setSelectedFuelType(e.target.value)}
-              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-3.5 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
+              onChange={(e) => handleFilterChange(() => setSelectedFuelType(e.target.value))}
+              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-3.5 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
             >
               <option value="all">All Fuel Types</option>
               {FUEL_TYPES.map((type) => (
@@ -223,61 +255,164 @@ export default function FuelLogsPage() {
             Try adjusting your search terms or filters.
           </p>
           <button
-            onClick={() => {
+            onClick={() => handleFilterChange(() => {
               setSearchTerm("");
               setSelectedVehicleId("all");
               setSelectedFuelType("all");
-            }}
+            })}
             className="mt-4 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-all cursor-pointer"
           >
             Clear filters
           </button>
         </div>
       ) : (
-        /* Fuel Logs List */
-        <div className="space-y-4">
-          {filteredLogs.map((log) => {
-            const vehicle = vehicleMap[log.vehicle_id];
-            const vehicleName = vehicle
-              ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
-              : "Unknown Vehicle";
+        /* Fuel Logs List & Grid Views */
+        <div className="space-y-6">
+          {viewMode === "list" ? (
+            /* LIST VIEW LAYOUT */
+            <div className="space-y-3">
+              {paginatedLogs.map((log) => {
+                const vehicle = vehicleMap[log.vehicle_id];
+                const vehicleName = vehicle
+                  ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+                  : "Unknown Vehicle";
 
-            return (
-              <div
-                key={log.id}
-                className="group relative flex flex-col gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-elevated transition-all hover:border-primary/30 hover:shadow-lg"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  {/* Left info: Vehicle + Date + Station */}
-                  <div className="flex items-start gap-3.5">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <Fuel className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-base font-semibold text-foreground">
-                          {vehicleName}
-                        </h4>
-                        {log.is_full_tank ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-3xs font-semibold text-emerald-600 dark:text-emerald-400">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Full Tank
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-muted bg-muted/50 px-2.5 py-0.5 text-3xs font-medium text-muted-foreground">
-                            Partial Fill
-                          </span>
-                        )}
-                        {log.fuel_type && (
-                          <span className="rounded-full bg-muted px-2.5 py-0.5 text-3xs font-medium text-muted-foreground">
-                            {log.fuel_type}
-                          </span>
-                        )}
+                return (
+                  <div
+                    key={log.id}
+                    className="group relative flex flex-col gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-elevated transition-all hover:border-primary/30 hover:shadow-lg"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      {/* Left info: Vehicle + Date + Station */}
+                      <div className="flex items-start gap-3.5">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Fuel className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-base font-semibold text-foreground">
+                              {vehicleName}
+                            </h4>
+                            {log.is_full_tank ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-3xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Full Tank
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-muted bg-muted/50 px-2.5 py-0.5 text-3xs font-medium text-muted-foreground">
+                                Partial Fill
+                              </span>
+                            )}
+                            {log.fuel_type && (
+                              <span className="rounded-full bg-muted px-2.5 py-0.5 text-3xs font-medium text-muted-foreground">
+                                {log.fuel_type}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5 text-muted-foreground/75" />
+                              {new Date(log.log_date).toLocaleDateString(undefined, {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                timeZone: "UTC",
+                              })}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Gauge className="h-3.5 w-3.5 text-muted-foreground/75" />
+                              {log.odometer.toLocaleString()} km
+                            </span>
+                            {log.fuel_station && (
+                              <span className="flex items-center gap-1">
+                                <Building2 className="h-3.5 w-3.5 text-muted-foreground/75" />
+                                {log.fuel_station}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {/* Right info: Volume, Rate, Total Cost */}
+                      <div className="flex flex-col items-end text-right">
+                        <span className="text-lg font-bold text-foreground tabular-nums">
+                          ${Number(log.total_cost).toFixed(2)}
+                        </span>
+                        <span className="text-xs font-medium text-foreground mt-0.5">
+                          {log.liters} L @ ${Number(log.price_per_liter).toFixed(2)}/L
+                        </span>
+                      </div>
+                    </div>
+
+                    {log.notes && (
+                      <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2.5 border border-border/40 leading-relaxed">
+                        {log.notes}
+                      </p>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-3">
+                      <Link
+                        href={`/fuel-logs/${log.id}/edit`}
+                        className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Link>
+                      <DeleteFuelLogButton logId={log.id} liters={log.liters} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* GRID VIEW LAYOUT */
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {paginatedLogs.map((log) => {
+                const vehicle = vehicleMap[log.vehicle_id];
+                const vehicleName = vehicle
+                  ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+                  : "Unknown Vehicle";
+
+                return (
+                  <div
+                    key={log.id}
+                    className="flex flex-col justify-between gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-elevated transition-all hover:border-primary/30 hover:shadow-lg"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Fuel className="h-5 w-5" />
+                        </div>
+                        <span className="text-lg font-bold text-foreground tabular-nums">
+                          ${Number(log.total_cost).toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <h4 className="text-base font-semibold text-foreground">
+                            {vehicleName}
+                          </h4>
+                          {log.is_full_tank ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-3xs font-semibold text-emerald-600 dark:text-emerald-400">
+                              Full Tank
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-medium text-muted-foreground">
+                              Partial
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs font-medium text-foreground">
+                          {log.liters} L @ ${Number(log.price_per_liter).toFixed(2)}/L
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1 border-t border-border/40">
                         <span className="flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5 text-muted-foreground/75" />
+                          <Calendar className="h-3.5 w-3.5" />
                           {new Date(log.log_date).toLocaleDateString(undefined, {
                             year: "numeric",
                             month: "short",
@@ -286,50 +421,51 @@ export default function FuelLogsPage() {
                           })}
                         </span>
                         <span className="flex items-center gap-1">
-                          <Gauge className="h-3.5 w-3.5 text-muted-foreground/75" />
+                          <Gauge className="h-3.5 w-3.5" />
                           {log.odometer.toLocaleString()} km
                         </span>
                         {log.fuel_station && (
                           <span className="flex items-center gap-1">
-                            <Building2 className="h-3.5 w-3.5 text-muted-foreground/75" />
+                            <Building2 className="h-3.5 w-3.5" />
                             {log.fuel_station}
                           </span>
                         )}
                       </div>
+
+                      {log.notes && (
+                        <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2 border border-border/40 leading-relaxed line-clamp-2">
+                          {log.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-3">
+                      <Link
+                        href={`/fuel-logs/${log.id}/edit`}
+                        className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent transition-all cursor-pointer"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Link>
+                      <DeleteFuelLogButton logId={log.id} liters={log.liters} />
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
 
-                  {/* Right info: Volume, Rate, Total Cost */}
-                  <div className="flex flex-col items-end text-right">
-                    <span className="text-lg font-bold text-foreground tabular-nums">
-                      ${Number(log.total_cost).toFixed(2)}
-                    </span>
-                    <span className="text-xs font-medium text-foreground mt-0.5">
-                      {log.liters} L @ ${Number(log.price_per_liter).toFixed(2)}/L
-                    </span>
-                  </div>
-                </div>
-
-                {log.notes && (
-                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2.5 border border-border/40 leading-relaxed">
-                    {log.notes}
-                  </p>
-                )}
-
-                {/* Actions */}
-                <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-3">
-                  <Link
-                    href={`/fuel-logs/${log.id}/edit`}
-                    className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </Link>
-                  <DeleteFuelLogButton logId={log.id} liters={log.liters} />
-                </div>
-              </div>
-            );
-          })}
+          {/* Pagination Controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={handlePageSizeChange}
+            itemName="fuel logs"
+          />
         </div>
       )}
     </div>
