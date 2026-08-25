@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Activity,
   Car,
@@ -11,15 +10,12 @@ import {
   Settings,
   ShieldCheck,
   User,
-  ChevronLeft,
-  ChevronRight,
   RefreshCw,
   Clock,
   Filter,
   Calendar,
-  Sparkles,
 } from "lucide-react";
-import { useActivities } from "@/features/activities/hooks/use-activities";
+import { useInfiniteActivities } from "@/features/activities/hooks/use-activities";
 import type { ActivityEntityType, ActivityLog } from "@/lib/types";
 
 /* ─── Relative time helper ─── */
@@ -146,23 +142,66 @@ const FILTERS: { id: ActivityEntityType | "all"; label: string }[] = [
 ];
 
 export default function ActivitiesPage() {
-  const [page, setPage] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState<ActivityEntityType | "all">("all");
-  const limit = 15;
+  const limit = 20;
 
-  const { data, isLoading, error, refetch, isFetching } = useActivities({
-    page,
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteActivities({
     limit,
     entityType: selectedCategory,
   });
 
-  const activities = data?.items || [];
-  const total = data?.total || 0;
-  const totalPages = Math.ceil(total / limit) || 1;
+  // Flatten pages and deduplicate activity logs
+  const activities = useMemo(() => {
+    if (!data?.pages) return [];
+    const seen = new Set<string>();
+    const list: ActivityLog[] = [];
+    for (const page of data.pages) {
+      if (page?.items) {
+        for (const item of page.items) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            list.push(item);
+          }
+        }
+      }
+    }
+    return list;
+  }, [data?.pages]);
+
+  const total = data?.pages?.[0]?.total ?? 0;
+
+  // IntersectionObserver to auto-load older activities on scroll
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const element = loadMoreRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1, rootMargin: "150px" }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   function handleCategoryChange(cat: ActivityEntityType | "all") {
     setSelectedCategory(cat);
-    setPage(1);
   }
 
   return (
@@ -186,7 +225,7 @@ export default function ActivitiesPage() {
           disabled={isFetching}
           className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-medium text-foreground shadow-sm transition-all hover:bg-accent disabled:opacity-50 cursor-pointer self-start sm:self-auto"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching && !isFetchingNextPage ? "animate-spin text-primary" : ""}`} />
           Refresh
         </button>
       </div>
@@ -250,7 +289,7 @@ export default function ActivitiesPage() {
           )}
         </div>
       ) : (
-        /* Timeline Feed */
+        /* Timeline Feed with Infinite Scroll */
         <div className="space-y-3">
           {activities.map((item: ActivityLog) => {
             const style = getEntityStyle(item.icon_type || item.entity_type);
@@ -295,36 +334,19 @@ export default function ActivitiesPage() {
             );
           })}
 
-          {/* ── Pagination Controls ── */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-border/60 pt-4 mt-6">
-            <p className="text-xs text-muted-foreground text-center sm:text-left">
-              Showing page <span className="font-semibold text-foreground">{page}</span> of{" "}
-              <span className="font-semibold text-foreground">{totalPages}</span> ({total} total entries)
-            </p>
-
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isFetching}
-                className="flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                Previous
-              </button>
-
-              <span className="px-2 text-xs font-medium text-muted-foreground">
-                {page} / {totalPages}
-              </span>
-
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages || isFetching}
-                className="flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Next
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
+          {/* ── Infinite Scroll Trigger & Bottom Loading Indicator ── */}
+          <div ref={loadMoreRef} className="py-4 flex flex-col items-center justify-center text-center">
+            {isFetchingNextPage && (
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground animate-pulse">
+                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                <span>Loading older activities...</span>
+              </div>
+            )}
+            {!hasNextPage && activities.length > 0 && (
+              <p className="text-xs text-muted-foreground/75">
+                You&apos;ve reached the end of the activity history.
+              </p>
+            )}
           </div>
         </div>
       )}

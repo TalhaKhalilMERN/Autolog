@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import type { ActivityEntityType, ActivityLog } from "@/lib/types";
 
 export interface PaginatedActivitiesData {
@@ -13,6 +13,45 @@ export interface UseActivitiesOptions {
   page?: number;
   limit?: number;
   entityType?: ActivityEntityType | "all";
+}
+
+export interface UseInfiniteActivitiesOptions {
+  limit?: number;
+  entityType?: ActivityEntityType | "all";
+}
+
+/**
+ * Hook to fetch infinite scroll activity logs.
+ * Query Key: ["activities", "infinite", { limit, entityType }]
+ */
+export function useInfiniteActivities(options: UseInfiniteActivitiesOptions = {}) {
+  const limit = options.limit || 20;
+  const entityType = options.entityType || "all";
+
+  return useInfiniteQuery<PaginatedActivitiesData, Error>({
+    queryKey: ["activities", "infinite", { limit, entityType }],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams({
+        page: (pageParam as number).toString(),
+        limit: limit.toString(),
+        entityType,
+      });
+
+      const res = await fetch(`/api/activities?${params.toString()}`);
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || "Failed to fetch activities");
+      }
+
+      const json = await res.json();
+      return json.data;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.hasMore) return undefined;
+      return lastPage.page + 1;
+    },
+  });
 }
 
 /**
