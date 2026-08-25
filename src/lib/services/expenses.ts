@@ -11,22 +11,87 @@ import { logActivity } from "@/lib/services/activities";
  * Automatically logs activities on CRUD events.
  */
 
+export interface GetExpensesOptions {
+  vehicleId?: string;
+  search?: string;
+  category?: string;
+  sort?: "desc" | "asc";
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedExpensesResult {
+  expenses: Expense[];
+  totalCount: number;
+  totalAmount: number;
+}
+
 export async function getExpenses(
   supabase: SupabaseClient,
-  vehicleId?: string
-): Promise<ApiResponse<Expense[]>> {
-  let query = supabase
-    .from("expenses")
-    .select("*")
-    .order("expense_date", { ascending: false })
-    .order("created_at", { ascending: false });
+  optionsOrVehicleId?: string | GetExpensesOptions
+): Promise<ApiResponse<Expense[] | PaginatedExpensesResult>> {
+  let vehicleId: string | undefined;
+  let search: string | undefined;
+  let category: string | undefined;
+  let sort: "desc" | "asc" = "desc";
+  let page: number | undefined;
+  let limit: number | undefined;
 
-  if (vehicleId) {
+  if (typeof optionsOrVehicleId === "string") {
+    vehicleId = optionsOrVehicleId;
+  } else if (optionsOrVehicleId) {
+    vehicleId = optionsOrVehicleId.vehicleId;
+    search = optionsOrVehicleId.search;
+    category = optionsOrVehicleId.category;
+    sort = optionsOrVehicleId.sort || "desc";
+    page = optionsOrVehicleId.page;
+    limit = optionsOrVehicleId.limit;
+  }
+
+  let query = supabase.from("expenses").select("*", { count: "exact" });
+
+  if (vehicleId && vehicleId !== "all") {
     query = query.eq("vehicle_id", vehicleId);
   }
 
-  const { data, error } = await query;
+  if (category && category !== "all") {
+    query = query.eq("category", category);
+  }
 
+  if (search && search.trim()) {
+    const term = search.trim();
+    query = query.or(`title.ilike.%${term}%,notes.ilike.%${term}%,category.ilike.%${term}%`);
+  }
+
+  query = query
+    .order("expense_date", { ascending: sort === "asc" })
+    .order("created_at", { ascending: sort === "asc" });
+
+  if (page && limit) {
+    // For aggregated total amount across filtered results
+    const { data: allMatching } = await query;
+    const totalAmount = ((allMatching as Expense[]) || []).reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    );
+
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    const { data, count, error } = await query.range(from, to);
+
+    if (error) return { data: null, error: error.message };
+
+    return {
+      data: {
+        expenses: (data as Expense[]) || [],
+        totalCount: count ?? 0,
+        totalAmount,
+      },
+      error: null,
+    };
+  }
+
+  const { data, error } = await query;
   if (error) return { data: null, error: error.message };
   return { data: data as Expense[], error: null };
 }

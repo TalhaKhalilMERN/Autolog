@@ -13,22 +13,71 @@ import { logActivity } from "@/lib/services/activities";
  * Automatically logs activities on CRUD events.
  */
 
+export interface GetServiceRecordsOptions {
+  vehicleId?: string;
+  search?: string;
+  sort?: "desc" | "asc";
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedServiceRecordsResult {
+  records: ServiceRecord[];
+  totalCount: number;
+}
+
 export async function getServiceRecords(
   supabase: SupabaseClient,
-  vehicleId?: string
-): Promise<ApiResponse<ServiceRecord[]>> {
-  let query = supabase
-    .from("service_records")
-    .select("*")
-    .order("service_date", { ascending: false })
-    .order("created_at", { ascending: false });
+  optionsOrVehicleId?: string | GetServiceRecordsOptions
+): Promise<ApiResponse<ServiceRecord[] | PaginatedServiceRecordsResult>> {
+  let vehicleId: string | undefined;
+  let search: string | undefined;
+  let sort: "desc" | "asc" = "desc";
+  let page: number | undefined;
+  let limit: number | undefined;
 
-  if (vehicleId) {
+  if (typeof optionsOrVehicleId === "string") {
+    vehicleId = optionsOrVehicleId;
+  } else if (optionsOrVehicleId) {
+    vehicleId = optionsOrVehicleId.vehicleId;
+    search = optionsOrVehicleId.search;
+    sort = optionsOrVehicleId.sort || "desc";
+    page = optionsOrVehicleId.page;
+    limit = optionsOrVehicleId.limit;
+  }
+
+  let query = supabase.from("service_records").select("*", { count: "exact" });
+
+  if (vehicleId && vehicleId !== "all") {
     query = query.eq("vehicle_id", vehicleId);
   }
 
-  const { data, error } = await query;
+  if (search && search.trim()) {
+    const term = search.trim();
+    query = query.or(`service_type.ilike.%${term}%,notes.ilike.%${term}%`);
+  }
 
+  query = query
+    .order("service_date", { ascending: sort === "asc" })
+    .order("created_at", { ascending: sort === "asc" });
+
+  if (page && limit) {
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    const { data, count, error } = await query.range(from, to);
+
+    if (error) return { data: null, error: error.message };
+
+    return {
+      data: {
+        records: (data as ServiceRecord[]) || [],
+        totalCount: count ?? 0,
+      },
+      error: null,
+    };
+  }
+
+  const { data, error } = await query;
   if (error) return { data: null, error: error.message };
   return { data: data as ServiceRecord[], error: null };
 }

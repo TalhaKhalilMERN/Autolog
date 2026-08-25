@@ -14,6 +14,7 @@ import {
   Plus,
   ArrowUpDown,
   X,
+  RotateCcw,
 } from "lucide-react";
 import { usePaginatedReminders } from "@/features/vehicles/hooks/use-reminders";
 import { useVehicles } from "@/features/vehicles/hooks/vehicles";
@@ -170,75 +171,88 @@ export default function RemindersPage() {
       </div>
 
       {/* Filters */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search title..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => { setSearchTerm(""); setDebouncedSearch(""); setCurrentPage(1); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 flex-1">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search title..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => { setSearchTerm(""); setDebouncedSearch(""); setCurrentPage(1); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Vehicle Filter */}
+          <div className="relative">
+            <Filter className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <select
+              value={selectedVehicleId}
+              onChange={(e) => handleFilterChange(() => setSelectedVehicleId(e.target.value))}
+              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
             >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+              <option value="all">All Vehicles</option>
+              {vehicles.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.year} {v.make} {v.model}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div className="relative">
+            <Bell className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <select
+              value={selectedStatus}
+              onChange={(e) => handleFilterChange(() => setSelectedStatus(e.target.value))}
+              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
+            >
+              <option value="all">All Statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s} className="capitalize">
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort */}
+          <div className="relative">
+            <ArrowUpDown className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <select
+              value={sortOption}
+              onChange={(e) => handleFilterChange(() => setSortOption(e.target.value as SortOption))}
+              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
+            >
+              <option value="created_desc">Newest First</option>
+              <option value="created_asc">Oldest First</option>
+              <option value="due_asc">Due Date (Earliest)</option>
+              <option value="due_desc">Due Date (Latest)</option>
+            </select>
+          </div>
         </div>
 
-        {/* Vehicle Filter */}
-        <div className="relative">
-          <Filter className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <select
-            value={selectedVehicleId}
-            onChange={(e) => handleFilterChange(() => setSelectedVehicleId(e.target.value))}
-            className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
+        {/* Reset Filters Button */}
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-all cursor-pointer shrink-0"
           >
-            <option value="all">All Vehicles</option>
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.year} {v.make} {v.model}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Status Filter */}
-        <div className="relative">
-          <Bell className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <select
-            value={selectedStatus}
-            onChange={(e) => handleFilterChange(() => setSelectedStatus(e.target.value))}
-            className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
-          >
-            <option value="all">All Statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s} className="capitalize">
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Sort */}
-        <div className="relative">
-          <ArrowUpDown className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <select
-            value={sortOption}
-            onChange={(e) => handleFilterChange(() => setSortOption(e.target.value as SortOption))}
-            className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
-          >
-            <option value="created_desc">Newest First</option>
-            <option value="created_asc">Oldest First</option>
-            <option value="due_asc">Due Date (Earliest)</option>
-            <option value="due_desc">Due Date (Latest)</option>
-          </select>
-        </div>
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset Filters
+          </button>
+        )}
       </div>
 
       {/* Empty state — no reminders at all */}

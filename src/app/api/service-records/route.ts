@@ -23,8 +23,21 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const vehicleId = searchParams.get("vehicleId") || undefined;
+  const search = searchParams.get("search") || undefined;
+  const sort = (searchParams.get("sort") as "desc" | "asc") || undefined;
+  const pageStr = searchParams.get("page");
+  const limitStr = searchParams.get("limit");
 
-  const result = await getServiceRecords(supabase, vehicleId);
+  const page = pageStr ? parseInt(pageStr, 10) : undefined;
+  const limit = limitStr ? parseInt(limitStr, 10) : undefined;
+
+  const result = await getServiceRecords(supabase, {
+    vehicleId,
+    search,
+    sort,
+    page,
+    limit,
+  });
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 });

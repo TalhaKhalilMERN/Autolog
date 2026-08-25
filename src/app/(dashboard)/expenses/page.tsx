@@ -4,9 +4,9 @@ import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  DollarSign, Search, Filter, Calendar, Gauge, Pencil, Car, ExternalLink, Wrench, Plus,
+  DollarSign, Search, Filter, Calendar, Gauge, Pencil, Car, ExternalLink, Wrench, Plus, RotateCcw, X,
 } from "lucide-react";
-import { useExpenses } from "@/features/vehicles/hooks/use-expenses";
+import { usePaginatedExpenses } from "@/features/vehicles/hooks/use-expenses";
 import { useVehicles } from "@/features/vehicles/hooks/vehicles";
 import { DeleteExpenseButton } from "@/components/DeleteExpenseButton";
 import { ViewToggle, ViewMode } from "@/components/ui/ViewToggle";
@@ -31,7 +31,6 @@ export default function ExpensesPage() {
   const searchParams = useSearchParams();
   const initialVehicleId = searchParams.get("vehicleId") || "all";
 
-  const { data: expenses = [], isLoading: expensesLoading, error } = useExpenses();
   const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
 
   // View Mode state (Default: List)
@@ -39,6 +38,7 @@ export default function ExpensesPage() {
 
   // Filter & Search states
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState(initialVehicleId);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortOrder, setSortOrder] = useState<"desc"|"asc">("desc");
@@ -47,27 +47,27 @@ export default function ExpensesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const vehicleMap = useMemo(() => Object.fromEntries(vehicles.map((v) => [v.id, v])), [vehicles]);
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  const filtered = useMemo(() => expenses
-    .filter((e) => {
-      if (selectedVehicleId !== "all" && e.vehicle_id !== selectedVehicleId) return false;
-      if (selectedCategory !== "all" && e.category !== selectedCategory) return false;
-      if (searchTerm.trim()) {
-        const t = searchTerm.toLowerCase();
-        const v = vehicleMap[e.vehicle_id];
-        const vs = v ? `${v.make} ${v.model}`.toLowerCase() : "";
-        if (!e.title.toLowerCase().includes(t) && !e.category.toLowerCase().includes(t) && !vs.includes(t)) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      const d = new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
-      return sortOrder === "desc" ? -d : d;
-    }),
-  [expenses, selectedVehicleId, selectedCategory, searchTerm, sortOrder, vehicleMap]);
+  const { data, isLoading: expensesLoading, isFetching, error } = usePaginatedExpenses({
+    page: currentPage,
+    limit: pageSize,
+    search: debouncedSearch,
+    vehicleId: selectedVehicleId,
+    category: selectedCategory,
+    sort: sortOrder,
+  });
 
-  const totalCount = filtered.length;
+  const expenses = data?.expenses ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const totalAmount = data?.totalAmount ?? 0;
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
   // Auto-adjust page if current page exceeds total pages
@@ -77,7 +77,23 @@ export default function ExpensesPage() {
     }
   }, [currentPage, totalPages]);
 
-  // Reset to page 1 on filter/search change
+  const vehicleMap = useMemo(() => Object.fromEntries(vehicles.map((v) => [v.id, v])), [vehicles]);
+
+  const hasActiveFilters =
+    searchTerm.trim() !== "" ||
+    selectedVehicleId !== "all" ||
+    selectedCategory !== "all" ||
+    sortOrder !== "desc";
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setDebouncedSearch("");
+    setSelectedVehicleId("all");
+    setSelectedCategory("all");
+    setSortOrder("desc");
+    setCurrentPage(1);
+  };
+
   const handleFilterChange = (fn: () => void) => {
     fn();
     setCurrentPage(1);
@@ -88,19 +104,11 @@ export default function ExpensesPage() {
     setCurrentPage(1);
   };
 
-  const paginatedExpenses = useMemo(() => {
-    const validPage = Math.min(Math.max(1, currentPage), totalPages);
-    const start = (validPage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, currentPage, pageSize, totalPages]);
-
-  const totalAmount = filtered.reduce((s, e) => s + Number(e.amount), 0);
-
   const addHref = selectedVehicleId !== "all"
     ? `/expenses/new?vehicleId=${selectedVehicleId}`
     : "/expenses/new";
 
-  if (expensesLoading || vehiclesLoading) return <div className="mx-auto max-w-5xl"><PageSkeleton /></div>;
+  if ((expensesLoading && !data) || vehiclesLoading) return <div className="mx-auto max-w-5xl"><PageSkeleton /></div>;
   if (error) return <div className="mx-auto max-w-5xl rounded-xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">Failed to load expenses: {error.message}</div>;
 
   return (
@@ -108,13 +116,22 @@ export default function ExpensesPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">Expenses</h2>
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            Expenses
+            {isFetching && (
+              <span className="h-2 w-2 rounded-full bg-primary animate-ping" title="Loading..." />
+            )}
+          </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {expenses.length === 0 ? "No expenses logged yet" : `${expenses.length} expense${expenses.length !== 1 ? "s" : ""} across all vehicles`}
+            {totalCount === 0
+              ? hasActiveFilters
+                ? "No matching expenses"
+                : "No expenses logged yet"
+              : `${totalCount} expense${totalCount !== 1 ? "s" : ""} recorded`}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {filtered.length > 0 && (
+          {totalCount > 0 && (
             <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-right">
               <p className="text-3xs text-muted-foreground">Total</p>
               <p className="text-sm font-bold text-foreground tabular-nums">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
@@ -132,20 +149,31 @@ export default function ExpensesPage() {
       </div>
 
       {/* Filters */}
-      {expenses.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 flex-1">
+          {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               placeholder="Search title, notes..."
               value={searchTerm}
-              onChange={(e) => handleFilterChange(() => setSearchTerm(e.target.value))}
-              className="w-full rounded-lg border border-border bg-background pl-9 pr-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
             />
+            {searchTerm && (
+              <button
+                onClick={() => { setSearchTerm(""); setDebouncedSearch(""); setCurrentPage(1); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
+
+          {/* Vehicle Filter */}
           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <select
               value={selectedVehicleId}
               onChange={(e) => handleFilterChange(() => setSelectedVehicleId(e.target.value))}
@@ -155,8 +183,10 @@ export default function ExpensesPage() {
               {vehicles.map((v) => <option key={v.id} value={v.id}>{v.year} {v.make} {v.model}</option>)}
             </select>
           </div>
+
+          {/* Category Filter */}
           <div className="relative">
-            <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <select
               value={selectedCategory}
               onChange={(e) => handleFilterChange(() => setSelectedCategory(e.target.value))}
@@ -166,8 +196,10 @@ export default function ExpensesPage() {
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+
+          {/* Sort */}
           <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <select
               value={sortOrder}
               onChange={(e) => handleFilterChange(() => setSortOrder(e.target.value as "desc"|"asc"))}
@@ -178,10 +210,21 @@ export default function ExpensesPage() {
             </select>
           </div>
         </div>
-      )}
+
+        {/* Reset Filters Button */}
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-all cursor-pointer shrink-0"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset Filters
+          </button>
+        )}
+      </div>
 
       {/* Content area */}
-      {expenses.length === 0 ? (
+      {totalCount === 0 && !hasActiveFilters ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
             <DollarSign className="h-7 w-7 text-primary" />
@@ -192,12 +235,12 @@ export default function ExpensesPage() {
             <Plus className="h-4 w-4" />Add First Expense
           </Link>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : totalCount === 0 && hasActiveFilters ? (
         <div className="rounded-xl border border-border/80 bg-card p-8 text-center">
           <p className="text-sm font-medium text-foreground">No matching expenses</p>
           <p className="mt-1 text-xs text-muted-foreground">Try adjusting your search or filters.</p>
           <button
-            onClick={() => handleFilterChange(() => { setSearchTerm(""); setSelectedVehicleId("all"); setSelectedCategory("all"); })}
+            onClick={clearFilters}
             className="mt-4 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-all cursor-pointer"
           >
             Clear filters
@@ -208,7 +251,7 @@ export default function ExpensesPage() {
           {viewMode === "list" ? (
             /* LIST VIEW */
             <div className="space-y-3">
-              {paginatedExpenses.map((expense) => {
+              {expenses.map((expense) => {
                 const v = vehicleMap[expense.vehicle_id];
                 const vehicleName = v ? `${v.year} ${v.make} ${v.model}` : "Unknown Vehicle";
                 return (
@@ -221,38 +264,56 @@ export default function ExpensesPage() {
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <h4 className="text-sm font-semibold text-foreground">{expense.title}</h4>
-                            <span className="rounded bg-muted px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">{expense.category}</span>
-                            {expense.service_record_id && (
-                              <span className="flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-3xs font-medium text-primary/80">
-                                <Wrench className="h-2.5 w-2.5" />Managed by Service
-                              </span>
-                            )}
+                            <span className="rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-3xs font-semibold text-emerald-600 dark:text-emerald-400">
+                              {expense.category}
+                            </span>
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1 font-medium text-foreground/80"><Car className="h-3.5 w-3.5 text-primary" />{vehicleName}</span>
-                            <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{new Date(expense.expense_date).toLocaleDateString(undefined, { year:"numeric",month:"short",day:"numeric",timeZone:"UTC" })}</span>
-                            <span className="flex items-center gap-1"><Gauge className="h-3.5 w-3.5" />{expense.mileage.toLocaleString()} km</span>
+                            <span className="flex items-center gap-1 font-medium text-foreground/80">
+                              <Car className="h-3.5 w-3.5 text-primary" />
+                              {vehicleName}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {new Date(expense.expense_date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" })}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Gauge className="h-3.5 w-3.5" />
+                              {Number(expense.mileage).toLocaleString()} km
+                            </span>
                           </div>
                         </div>
                       </div>
-                      <span className="text-lg font-bold text-foreground tabular-nums">${Number(expense.amount).toFixed(2)}</span>
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-base font-bold text-foreground tabular-nums">
+                          ${Number(expense.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
                     </div>
-                    {expense.notes && <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2.5 border border-border/40 leading-relaxed">{expense.notes}</p>}
-                    <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-2">
-                      {expense.service_record_id ? (
-                        <Link href={`/services/${expense.service_record_id}/edit`}
-                          className="inline-flex items-center gap-1.5 rounded border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary transition-all hover:bg-primary/10 cursor-pointer">
-                          <ExternalLink className="h-3.5 w-3.5" />Edit Service Record
-                        </Link>
-                      ) : (
-                        <>
-                          <Link href={`/expenses/${expense.id}/edit`}
-                            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent transition-all cursor-pointer">
-                            <Pencil className="h-3.5 w-3.5" />Edit
+
+                    {expense.notes && (
+                      <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2.5 border border-border/40 leading-relaxed">
+                        {expense.notes}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between border-t border-border/40 pt-2 text-xs">
+                      <div>
+                        {expense.service_record_id && (
+                          <Link href={`/services`} className="inline-flex items-center gap-1 text-sky-500 hover:underline">
+                            <Wrench className="h-3 w-3" />
+                            Linked Service
+                            <ExternalLink className="h-3 w-3" />
                           </Link>
-                          <DeleteExpenseButton expenseId={expense.id} title={expense.title} />
-                        </>
-                      )}
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/expenses/${expense.id}/edit`} className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 font-medium text-foreground hover:bg-accent transition-all cursor-pointer">
+                          <Pencil className="h-3.5 w-3.5" />Edit
+                        </Link>
+                        <DeleteExpenseButton expenseId={expense.id} title={expense.title} />
+                      </div>
                     </div>
                   </div>
                 );
@@ -261,7 +322,7 @@ export default function ExpensesPage() {
           ) : (
             /* GRID VIEW */
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {paginatedExpenses.map((expense) => {
+              {expenses.map((expense) => {
                 const v = vehicleMap[expense.vehicle_id];
                 const vehicleName = v ? `${v.year} ${v.make} ${v.model}` : "Unknown Vehicle";
                 return (
@@ -271,39 +332,46 @@ export default function ExpensesPage() {
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
                           <DollarSign className="h-5 w-5" />
                         </div>
-                        <span className="text-lg font-bold text-foreground tabular-nums">${Number(expense.amount).toFixed(2)}</span>
+                        <span className="rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-3xs font-semibold text-emerald-600 dark:text-emerald-400">
+                          {expense.category}
+                        </span>
                       </div>
                       <div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <h4 className="text-base font-semibold text-foreground">{expense.title}</h4>
-                          <span className="rounded bg-muted px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">{expense.category}</span>
-                        </div>
+                        <h4 className="text-base font-semibold text-foreground">{expense.title}</h4>
                         <p className="mt-1 flex items-center gap-1 text-xs font-medium text-foreground/80">
-                          <Car className="h-3.5 w-3.5 text-primary" />{vehicleName}
+                          <Car className="h-3.5 w-3.5 text-primary" />
+                          {vehicleName}
                         </p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1 border-t border-border/40">
-                        <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{new Date(expense.expense_date).toLocaleDateString(undefined, { year:"numeric",month:"short",day:"numeric",timeZone:"UTC" })}</span>
-                        <span className="flex items-center gap-1"><Gauge className="h-3.5 w-3.5" />{expense.mileage.toLocaleString()} km</span>
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground pt-1 border-t border-border/40">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {new Date(expense.expense_date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" })}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Gauge className="h-3.5 w-3.5" />
+                          {Number(expense.mileage).toLocaleString()} km
+                        </span>
                       </div>
-                      {expense.notes && <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2 border border-border/40 leading-relaxed line-clamp-2">{expense.notes}</p>}
+
+                      {expense.notes && (
+                        <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2 border border-border/40 leading-relaxed line-clamp-2">
+                          {expense.notes}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-3">
-                      {expense.service_record_id ? (
-                        <Link href={`/services/${expense.service_record_id}/edit`}
-                          className="inline-flex items-center gap-1.5 rounded border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary transition-all hover:bg-primary/10 cursor-pointer">
-                          <ExternalLink className="h-3.5 w-3.5" />Edit Service Record
+                    <div className="flex items-center justify-between border-t border-border/40 pt-3">
+                      <span className="text-base font-bold text-foreground tabular-nums">
+                        ${Number(expense.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/expenses/${expense.id}/edit`} className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent transition-all cursor-pointer">
+                          <Pencil className="h-3.5 w-3.5" />Edit
                         </Link>
-                      ) : (
-                        <>
-                          <Link href={`/expenses/${expense.id}/edit`}
-                            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent transition-all cursor-pointer">
-                            <Pencil className="h-3.5 w-3.5" />Edit
-                          </Link>
-                          <DeleteExpenseButton expenseId={expense.id} title={expense.title} />
-                        </>
-                      )}
+                        <DeleteExpenseButton expenseId={expense.id} title={expense.title} />
+                      </div>
                     </div>
                   </div>
                 );
@@ -311,7 +379,7 @@ export default function ExpensesPage() {
             </div>
           )}
 
-          {/* Pagination Controls */}
+          {/* Pagination */}
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

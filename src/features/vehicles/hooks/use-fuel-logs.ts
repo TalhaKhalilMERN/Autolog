@@ -23,6 +23,46 @@ export function useFuelLogs(vehicleId?: string) {
   });
 }
 
+export interface UsePaginatedFuelLogsOptions {
+  page: number;
+  limit: number;
+  search?: string;
+  vehicleId?: string;
+  fuelType?: string;
+}
+
+export interface PaginatedFuelLogsResponse {
+  fuelLogs: FuelLog[];
+  totalCount: number;
+}
+
+/**
+ * Hook to fetch paginated + server-filtered fuel logs.
+ * Query key: ["fuel-logs", "paginated", options]
+ */
+export function usePaginatedFuelLogs(options: UsePaginatedFuelLogsOptions) {
+  return useQuery<PaginatedFuelLogsResponse, Error>({
+    queryKey: ["fuel-logs", "paginated", options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(options.page));
+      params.set("limit", String(options.limit));
+      if (options.search) params.set("search", options.search);
+      if (options.vehicleId && options.vehicleId !== "all") params.set("vehicleId", options.vehicleId);
+      if (options.fuelType && options.fuelType !== "all") params.set("fuelType", options.fuelType);
+
+      const res = await fetch(`/api/fuel-logs?${params.toString()}`);
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || "Failed to fetch fuel logs");
+      }
+      const json = await res.json();
+      return json.data;
+    },
+    placeholderData: (previousData) => previousData,
+  });
+}
+
 /**
  * Hook to fetch a single fuel log by ID.
  * Query key: ["fuel-log", id]

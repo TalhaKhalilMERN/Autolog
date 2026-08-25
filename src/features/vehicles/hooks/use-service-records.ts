@@ -23,6 +23,46 @@ export function useServiceRecords(vehicleId?: string) {
   });
 }
 
+export interface UsePaginatedServiceRecordsOptions {
+  page: number;
+  limit: number;
+  search?: string;
+  vehicleId?: string;
+  sort?: "desc" | "asc";
+}
+
+export interface PaginatedServiceRecordsResponse {
+  records: ServiceRecord[];
+  totalCount: number;
+}
+
+/**
+ * Hook to fetch paginated + server-filtered service records.
+ * Query key: ["service-records", "paginated", options]
+ */
+export function usePaginatedServiceRecords(options: UsePaginatedServiceRecordsOptions) {
+  return useQuery<PaginatedServiceRecordsResponse, Error>({
+    queryKey: ["service-records", "paginated", options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(options.page));
+      params.set("limit", String(options.limit));
+      if (options.search) params.set("search", options.search);
+      if (options.vehicleId && options.vehicleId !== "all") params.set("vehicleId", options.vehicleId);
+      if (options.sort) params.set("sort", options.sort);
+
+      const res = await fetch(`/api/service-records?${params.toString()}`);
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || "Failed to fetch service records");
+      }
+      const json = await res.json();
+      return json.data;
+    },
+    placeholderData: (previousData) => previousData,
+  });
+}
+
 /**
  * Hook to fetch a single service record by ID.
  * Query key: ["service-record", id]

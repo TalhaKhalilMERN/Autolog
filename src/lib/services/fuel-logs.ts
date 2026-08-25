@@ -12,22 +12,75 @@ import { logActivity } from "@/lib/services/activities";
  * Reuses the same odometer guard & vehicle mileage sync logic as Service Records.
  */
 
+export interface GetFuelLogsOptions {
+  vehicleId?: string;
+  search?: string;
+  fuelType?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedFuelLogsResult {
+  fuelLogs: FuelLog[];
+  totalCount: number;
+}
+
 export async function getFuelLogs(
   supabase: SupabaseClient,
-  vehicleId?: string
-): Promise<ApiResponse<FuelLog[]>> {
-  let query = supabase
-    .from("fuel_logs")
-    .select("*")
-    .order("log_date", { ascending: false })
-    .order("created_at", { ascending: false });
+  optionsOrVehicleId?: string | GetFuelLogsOptions
+): Promise<ApiResponse<FuelLog[] | PaginatedFuelLogsResult>> {
+  let vehicleId: string | undefined;
+  let search: string | undefined;
+  let fuelType: string | undefined;
+  let page: number | undefined;
+  let limit: number | undefined;
 
-  if (vehicleId) {
+  if (typeof optionsOrVehicleId === "string") {
+    vehicleId = optionsOrVehicleId;
+  } else if (optionsOrVehicleId) {
+    vehicleId = optionsOrVehicleId.vehicleId;
+    search = optionsOrVehicleId.search;
+    fuelType = optionsOrVehicleId.fuelType;
+    page = optionsOrVehicleId.page;
+    limit = optionsOrVehicleId.limit;
+  }
+
+  let query = supabase.from("fuel_logs").select("*", { count: "exact" });
+
+  if (vehicleId && vehicleId !== "all") {
     query = query.eq("vehicle_id", vehicleId);
   }
 
-  const { data, error } = await query;
+  if (fuelType && fuelType !== "all") {
+    query = query.eq("fuel_type", fuelType);
+  }
 
+  if (search && search.trim()) {
+    const term = search.trim();
+    query = query.or(`fuel_station.ilike.%${term}%,notes.ilike.%${term}%,fuel_type.ilike.%${term}%`);
+  }
+
+  query = query
+    .order("log_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (page && limit) {
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    const { data, count, error } = await query.range(from, to);
+
+    if (error) return { data: null, error: error.message };
+
+    return {
+      data: {
+        fuelLogs: (data as FuelLog[]) || [],
+        totalCount: count ?? 0,
+      },
+      error: null,
+    };
+  }
+
+  const { data, error } = await query;
   if (error) return { data: null, error: error.message };
   return { data: data as FuelLog[], error: null };
 }
