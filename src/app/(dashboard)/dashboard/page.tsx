@@ -13,17 +13,13 @@ import {
   ChevronRight,
   ArrowUpRight,
   Activity,
-  TrendingUp,
-  BarChart3,
   Fuel,
-  Zap,
   Settings,
   ShieldCheck,
   User,
 } from "lucide-react";
 import { useVehicles } from "@/features/vehicles/hooks/vehicles";
 import { useExpenses } from "@/features/vehicles/hooks/use-expenses";
-import { useServiceRecords } from "@/features/vehicles/hooks/use-service-records";
 import { useReminders } from "@/features/vehicles/hooks/use-reminders";
 import { useDashboardStats } from "@/features/vehicles/hooks/use-dashboard-stats";
 import { useProfile } from "@/features/settings/hooks/use-profile";
@@ -80,7 +76,7 @@ function Skeleton({ className }: { className?: string }) {
 
 function CardSkeleton() {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-elevated">
+    <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-elevated">
       <div className="flex items-start justify-between mb-4">
         <Skeleton className="h-9 w-9 rounded-lg" />
         <Skeleton className="h-3 w-16" />
@@ -114,15 +110,15 @@ function EmptyState({
   ctaHref: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 px-6 py-10 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 px-4 py-8 sm:px-6 sm:py-10 text-center w-full min-w-0">
+      <div className="mb-3 flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-primary/10">
         <Icon className="h-5 w-5 text-primary" />
       </div>
       <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-      <p className="mt-1 text-xs text-muted-foreground max-w-[220px]">{description}</p>
+      <p className="mt-1 text-xs text-muted-foreground max-w-[220px] leading-relaxed">{description}</p>
       <Link
         href={ctaHref}
-        className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gradient-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px"
+        className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gradient-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 hover:-translate-y-px cursor-pointer"
       >
         <Plus className="h-3.5 w-3.5" />
         {ctaLabel}
@@ -144,16 +140,16 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-base font-semibold text-foreground">{title}</h3>
-          {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+    <section className="space-y-3 sm:space-y-4 w-full min-w-0">
+      <div className="flex items-center justify-between gap-2 min-w-0">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-foreground truncate">{title}</h3>
+          {description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{description}</p>}
         </div>
         {cta && (
           <Link
             href={cta.href}
-            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline shrink-0"
           >
             {cta.label}
             <ChevronRight className="h-3 w-3" />
@@ -195,18 +191,18 @@ function KpiCard({
   return (
     <Link
       href={href}
-      className="group relative flex flex-col gap-3 rounded-xl border border-border bg-card p-5 shadow-elevated transition-all hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/30"
+      className="group relative flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:p-5 shadow-elevated transition-all hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/30 min-w-0 overflow-hidden"
     >
-      <div className="flex items-start justify-between">
-        <div className={`rounded-lg p-2.5 ${accentMap[accent]}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className={`rounded-lg p-2 sm:p-2.5 ${accentMap[accent]}`}>
           <Icon className="h-4 w-4" />
         </div>
-        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 shrink-0" />
       </div>
-      <div>
-        <p className="text-2xl font-bold tabular-nums text-foreground">{value}</p>
-        <p className="mt-0.5 text-xs font-medium text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
+      <div className="min-w-0">
+        <p className="text-xl sm:text-2xl font-bold tabular-nums text-foreground truncate">{value}</p>
+        <p className="mt-0.5 text-xs font-medium text-foreground truncate">{title}</p>
+        <p className="text-xs text-muted-foreground truncate">{description}</p>
       </div>
     </Link>
   );
@@ -265,45 +261,45 @@ function VehicleCard({
   }
 
   return (
-    <div className="group flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-elevated transition-all hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/20">
+    <div className="group flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:p-5 shadow-elevated transition-all hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/20 min-w-0 overflow-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
           <Car className="h-5 w-5 text-primary" />
         </div>
         {badge && (
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${badge.cls}`}>
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider shrink-0 ${badge.cls}`}>
             {badge.label}
           </span>
         )}
       </div>
 
       {/* Info */}
-      <div>
-        <p className="font-semibold text-foreground leading-tight">
+      <div className="min-w-0">
+        <p className="font-semibold text-foreground leading-tight truncate">
           {vehicle.make} {vehicle.model}
         </p>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5 truncate">
           {vehicle.year} · {vehicle.variant || "Standard"}
         </p>
         {vehicle.current_odometer != null && (
-          <p className="mt-2 text-xs font-medium text-foreground">
+          <p className="mt-2 text-xs font-medium text-foreground truncate">
             {vehicle.current_odometer.toLocaleString()} km
           </p>
         )}
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 mt-auto">
+      <div className="flex gap-2 mt-auto pt-1">
         <Link
           href={`/vehicles/${vehicle.id}`}
-          className="flex-1 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-center text-xs font-medium text-foreground transition-all hover:bg-accent"
+          className="flex-1 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-center text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
         >
           View
         </Link>
         <Link
           href={`/vehicles/${vehicle.id}/edit`}
-          className="flex-1 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-center text-xs font-medium text-foreground transition-all hover:bg-accent"
+          className="flex-1 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-center text-xs font-medium text-foreground transition-all hover:bg-accent cursor-pointer"
         >
           Edit
         </Link>
@@ -319,21 +315,21 @@ function ReminderRow({ reminder, vehicle }: { reminder: MaintenanceReminder; veh
   const isToday = days === 0;
 
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-border/50 last:border-0">
+    <div className="flex items-start gap-2.5 sm:gap-3 py-3 border-b border-border/50 last:border-0 min-w-0">
       <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-0.5 ${isOverdue ? "bg-destructive/10" : "bg-amber-500/10"}`}>
         <Bell className={`h-3.5 w-3.5 ${isOverdue ? "text-destructive" : "text-amber-500"}`} />
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{reminder.title}</p>
+        <p className="text-xs sm:text-sm font-medium text-foreground truncate">{reminder.title}</p>
         <p className="text-xs text-muted-foreground truncate">
           {vehicle ? `${vehicle.make} ${vehicle.model}` : "Unknown vehicle"}
           {reminder.due_date && ` · Due ${fmt.date(reminder.due_date)}`}
         </p>
-        {/* Badge + action row — wraps gracefully on tiny screens */}
+        {/* Badge + action row */}
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           {days !== null && (
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOverdue
+            <span className={`text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full ${isOverdue
               ? "bg-destructive/10 text-destructive"
               : isToday
                 ? "bg-amber-500/10 text-amber-500"
@@ -344,7 +340,7 @@ function ReminderRow({ reminder, vehicle }: { reminder: MaintenanceReminder; veh
           )}
           <Link
             href={`/vehicles/${reminder.vehicle_id}`}
-            className="rounded-lg border border-border px-2.5 py-0.5 text-xs font-medium text-foreground transition-all hover:bg-accent"
+            className="rounded-lg border border-border px-2 py-0.5 text-xs font-medium text-foreground transition-all hover:bg-accent shrink-0 cursor-pointer"
           >
             View
           </Link>
@@ -358,7 +354,7 @@ function ReminderRow({ reminder, vehicle }: { reminder: MaintenanceReminder; veh
 function ExpenseSummary({ expenses, loading }: { expenses: Expense[]; loading: boolean }) {
   if (loading) {
     return (
-      <div className="rounded-xl border border-border bg-card p-5 shadow-elevated space-y-4">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-elevated space-y-4 min-w-0">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-8 w-40" />
         <div className="space-y-2">
@@ -390,28 +386,28 @@ function ExpenseSummary({ expenses, loading }: { expenses: Expense[]; loading: b
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-elevated space-y-5">
+    <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-elevated space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden">
       <div>
         <p className="text-xs font-medium text-muted-foreground">Total Fleet Expenses</p>
-        <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground mt-1 break-all">
+        <p className="text-xl sm:text-3xl font-bold tabular-nums text-foreground mt-1 break-words">
           {fmt.currency(totalAmount)}
         </p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 min-w-0">
         {/* Service expenses bar */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground min-w-0">
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground min-w-0 flex-1">
               <Wrench className="h-3 w-3 text-primary shrink-0" />
               <span className="truncate">Service Expenses</span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
               <span className="text-xs text-muted-foreground tabular-nums">{fmt.currency(serviceExpenses)}</span>
               <span className="text-xs font-semibold text-primary">{servicePct}%</span>
             </div>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-muted/50">
+          <div className="h-1.5 w-full rounded-full bg-muted/50 overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-primary transition-all duration-500"
               style={{ width: `${servicePct}%` }}
@@ -420,18 +416,18 @@ function ExpenseSummary({ expenses, loading }: { expenses: Expense[]; loading: b
         </div>
 
         {/* Manual expenses bar */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground min-w-0">
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground min-w-0 flex-1">
               <DollarSign className="h-3 w-3 text-emerald-500 shrink-0" />
               <span className="truncate">Manual Expenses</span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
               <span className="text-xs text-muted-foreground tabular-nums">{fmt.currency(manualExpenses)}</span>
               <span className="text-xs font-semibold text-emerald-500">{manualPct}%</span>
             </div>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-muted/50">
+          <div className="h-1.5 w-full rounded-full bg-muted/50 overflow-hidden">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
               style={{ width: `${manualPct}%` }}
@@ -439,24 +435,6 @@ function ExpenseSummary({ expenses, loading }: { expenses: Expense[]; loading: b
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ─── Chart Placeholder ─── */
-function ChartPlaceholder({ title, description, icon: Icon }: { title: string; description: string; icon: React.ElementType }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/50 bg-muted/5 px-6 py-10 text-center">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/40">
-        <Icon className="h-5 w-5 text-muted-foreground" />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-      </div>
-      <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-        Coming Soon
-      </span>
     </div>
   );
 }
@@ -485,7 +463,7 @@ export default function DashboardPage() {
     {
       title: "Total Vehicles",
       value: stats?.vehicleCount ?? 0,
-      description: "Vehicles in your fleet",
+      description: "Vehicles in fleet",
       icon: Car,
       accent: "primary" as const,
       href: "/vehicles",
@@ -493,7 +471,7 @@ export default function DashboardPage() {
     {
       title: "Total Expenses",
       value: stats ? fmt.currency(stats.totalExpenses) : "—",
-      description: "All-time fleet spending",
+      description: "All-time spending",
       icon: DollarSign,
       accent: "success" as const,
       href: "/vehicles",
@@ -501,7 +479,7 @@ export default function DashboardPage() {
     {
       title: "Service Records",
       value: stats?.serviceRecordCount ?? 0,
-      description: "Logged service events",
+      description: "Logged services",
       icon: ClipboardList,
       accent: "primary" as const,
       href: "/vehicles",
@@ -509,7 +487,7 @@ export default function DashboardPage() {
     {
       title: "Active Reminders",
       value: stats?.activeRemindersCount ?? 0,
-      description: "Pending maintenance items",
+      description: "Pending items",
       icon: Bell,
       accent: "warning" as const,
       href: "/vehicles",
@@ -525,7 +503,7 @@ export default function DashboardPage() {
     {
       title: "Due This Week",
       value: stats?.upcomingRemindersCount ?? 0,
-      description: "Reminders in next 7 days",
+      description: "Next 7 days",
       icon: CalendarClock,
       accent: "warning" as const,
       href: "/vehicles",
@@ -533,37 +511,37 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8 w-full min-w-0">
 
       {/* ── Welcome Banner ── */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-elevated">
         <div className="absolute inset-0 bg-gradient-hero opacity-60 pointer-events-none" />
-        <div className="relative px-6 py-7 sm:px-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="relative p-5 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary mb-3">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary mb-2.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                 AutoLog
               </div>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              <h2 className="text-xl sm:text-3xl font-bold tracking-tight text-foreground">
                 Welcome back, {firstName}! 👋
               </h2>
-              <p className="mt-1.5 text-sm text-muted-foreground">{today()}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-xs sm:text-sm text-muted-foreground">{today()}</p>
+              <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
                 Your fleet overview is ready. Keep your vehicles in top shape.
               </p>
             </div>
           </div>
 
           {/* Quick Actions */}
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mt-5 flex flex-wrap gap-2">
             {QUICK_ACTIONS.map(({ label, href, icon: Icon }) => (
               <Link
                 key={label}
                 href={href}
-                className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/60 px-3.5 py-2 text-xs font-medium text-foreground backdrop-blur-sm transition-all hover:bg-accent hover:border-primary/30"
+                className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-xs font-medium text-foreground backdrop-blur-sm transition-all hover:bg-accent hover:border-primary/30 cursor-pointer"
               >
-                <Icon className="h-3.5 w-3.5 text-primary" />
+                <Icon className="h-3.5 w-3.5 text-primary shrink-0" />
                 {label}
               </Link>
             ))}
@@ -573,7 +551,7 @@ export default function DashboardPage() {
 
       {/* ── KPI Cards ── */}
       <Section title="Fleet Overview" description="Key metrics across your entire fleet">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3 w-full min-w-0">
           {kpis.map((kpi) => (
             <KpiCard key={kpi.title} {...kpi} loading={statsLoading} />
           ))}
@@ -581,10 +559,10 @@ export default function DashboardPage() {
       </Section>
 
       {/* ── Main Content Grid ── */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3 w-full min-w-0">
 
         {/* Left column — 2/3 width */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 min-w-0">
 
           {/* ── Recent Activity Feed ── */}
           <Section
@@ -592,22 +570,22 @@ export default function DashboardPage() {
             description="System activity audit log"
             cta={{ label: "View full log", href: "/activities" }}
           >
-            <div className="rounded-xl border border-border bg-card shadow-elevated">
+            <div className="rounded-xl border border-border bg-card shadow-elevated overflow-hidden w-full min-w-0">
               {activitiesLoading ? (
                 <div className="p-4 space-y-4">
                   {[...Array(6)].map((_, i) => (
                     <div key={i} className="flex items-center gap-3">
-                      <Skeleton className="h-8 w-8 rounded-full" />
-                      <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                      <div className="flex-1 space-y-1.5 min-w-0">
                         <Skeleton className="h-3 w-40" />
                         <Skeleton className="h-3 w-28" />
                       </div>
-                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-3 w-16 shrink-0" />
                     </div>
                   ))}
                 </div>
               ) : latestActivities.length === 0 ? (
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                   <EmptyState
                     icon={Activity}
                     title="No activity recorded yet"
@@ -622,22 +600,22 @@ export default function DashboardPage() {
                     const badge = getActivityBadge(item.icon_type || item.entity_type);
                     const IconComp = badge.icon;
                     return (
-                      <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${badge.cls}`}>
-                          <IconComp className="h-4 w-4" />
+                      <div key={item.id} className="flex items-start sm:items-center gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-3 min-w-0">
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border mt-0.5 sm:mt-0 ${badge.cls}`}>
+                          <IconComp className="h-4 w-4 shrink-0" />
                         </div>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-foreground truncate">{item.title}</p>
-                            <span className={`rounded-full border px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wider ${badge.cls}`}>
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                            <p className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-full">{item.title}</p>
+                            <span className={`rounded-full border px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wider shrink-0 ${badge.cls}`}>
                               {badge.label}
                             </span>
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                          <p className="text-xs text-muted-foreground truncate max-w-full">{item.description}</p>
                         </div>
 
-                        <span className="text-[11px] text-muted-foreground shrink-0">
+                        <span className="text-[11px] text-muted-foreground shrink-0 self-start sm:self-center ml-auto pl-1">
                           {formatRelativeTime(item.created_at)}
                         </span>
                       </div>
@@ -651,7 +629,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Right column — 1/3 width */}
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
 
           {/* ── Expense Summary ── */}
           <Section title="Expense Summary">
@@ -664,13 +642,13 @@ export default function DashboardPage() {
             description="Sorted by due date"
             cta={{ label: "View all", href: "/vehicles" }}
           >
-            <div className="rounded-xl border border-border bg-card px-4 shadow-elevated">
+            <div className="rounded-xl border border-border bg-card px-3.5 sm:px-4 shadow-elevated w-full min-w-0 overflow-hidden">
               {remindersLoading ? (
                 <div className="py-4 space-y-4">
                   {[...Array(3)].map((_, i) => (
                     <div key={i} className="flex items-center gap-3">
-                      <Skeleton className="h-8 w-8 rounded-full" />
-                      <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                      <div className="flex-1 space-y-1.5 min-w-0">
                         <Skeleton className="h-3 w-32" />
                         <Skeleton className="h-3 w-24" />
                       </div>
@@ -705,9 +683,9 @@ export default function DashboardPage() {
         cta={{ label: "Manage vehicles", href: "/vehicles" }}
       >
         {vehiclesLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full min-w-0">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-elevated space-y-4">
+              <div key={i} className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-elevated space-y-4">
                 <div className="flex items-start justify-between">
                   <Skeleton className="h-10 w-10 rounded-xl" />
                   <Skeleton className="h-5 w-20 rounded-full" />
@@ -732,8 +710,8 @@ export default function DashboardPage() {
             ctaHref="/vehicles/new"
           />
         ) : (
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-4 w-full min-w-0">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full min-w-0">
               {vehicles.slice(0, 4).map((v) => (
                 <VehicleCard key={v.id} vehicle={v} reminders={reminders} />
               ))}
@@ -742,7 +720,7 @@ export default function DashboardPage() {
               <div className="flex justify-center pt-1">
                 <Link
                   href="/vehicles"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-accent hover:border-primary/30"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-accent hover:border-primary/30 cursor-pointer"
                 >
                   View all {vehicles.length} vehicles
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />

@@ -62,18 +62,18 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-elevated flex flex-col h-full min-h-[300px]">
+    <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-elevated flex flex-col h-full min-h-[300px] w-full min-w-0 overflow-hidden">
       <div className="flex items-start justify-between mb-4 gap-3">
-        <div className="min-w-0">
-          <h3 className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2 truncate">
             <Icon className="h-4 w-4 text-primary shrink-0" />
-            {title}
+            <span className="truncate">{title}</span>
           </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">{description}</p>
         </div>
         {headerSlot && <div className="shrink-0">{headerSlot}</div>}
       </div>
-      <div className="w-full flex-1 min-h-[230px] flex flex-col justify-center">
+      <div className="w-full flex-1 min-h-[230px] flex flex-col justify-center min-w-0 overflow-hidden">
         {children}
       </div>
     </div>
