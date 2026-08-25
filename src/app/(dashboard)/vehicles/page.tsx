@@ -11,6 +11,7 @@ import {
   Gauge,
   ArrowUpDown,
   ExternalLink,
+  RotateCcw,
 } from "lucide-react";
 import { usePaginatedVehicles } from "@/features/vehicles/hooks/vehicles";
 import { ViewToggle, ViewMode } from "@/components/ui/ViewToggle";
@@ -140,62 +141,75 @@ export default function VehiclesPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search make, model, reg #..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => {
-                setSearchTerm("");
-                setDebouncedSearch("");
-                setCurrentPage(1);
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="grid gap-3 sm:grid-cols-3 flex-1">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search make, model, reg #..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setDebouncedSearch("");
+                  setCurrentPage(1);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Fuel Type Filter */}
+          <div className="relative">
+            <Filter className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <select
+              value={selectedFuelType}
+              onChange={(e) => handleFuelTypeChange(e.target.value)}
+              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
             >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+              <option value="all">All Fuel Types</option>
+              {FUEL_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort Order */}
+          <div className="relative">
+            <ArrowUpDown className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <select
+              value={sortOrder}
+              onChange={(e) => handleSortChange(e.target.value as any)}
+              className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="odometer">Highest Mileage</option>
+            </select>
+          </div>
         </div>
 
-        {/* Fuel Type Filter */}
-        <div className="relative">
-          <Filter className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <select
-            value={selectedFuelType}
-            onChange={(e) => handleFuelTypeChange(e.target.value)}
-            className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
+        {/* Reset Filters Button */}
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-all cursor-pointer shrink-0"
           >
-            <option value="all">All Fuel Types</option>
-            {FUEL_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Sort Order */}
-        <div className="relative">
-          <ArrowUpDown className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <select
-            value={sortOrder}
-            onChange={(e) => handleSortChange(e.target.value as any)}
-            className="w-full appearance-none rounded-lg border border-border bg-background pl-9 pr-8 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/30 cursor-pointer"
-          >
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-            <option value="name">Name (A-Z)</option>
-            <option value="odometer">Highest Mileage</option>
-          </select>
-        </div>
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset Filters
+          </button>
+        )}
       </div>
 
       {/* Empty State (0 total user vehicles) */}
