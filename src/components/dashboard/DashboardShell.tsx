@@ -19,6 +19,7 @@ import {
   Bell,
   PanelLeftClose,
   PanelLeftOpen,
+  Sparkles,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +32,7 @@ const navItems = [
   { href: "/expenses", label: "Expenses", icon: DollarSign },
   { href: "/fuel-logs", label: "Fuel Logs", icon: Fuel },
   { href: "/reminders", label: "Reminders", icon: Bell },
+  { href: "/ai-assistant", label: "AI Assistant", icon: Sparkles },
   { href: "/activities", label: "Activity", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
