@@ -20,19 +20,84 @@ import { AI_TOOL_DEFINITIONS, AI_TOOL_EXECUTORS } from "@/lib/ai/tools";
  * prevent runaway loops.
  */
 
-const SYSTEM_PROMPT = `You are AutoLog AI, an intelligent assistant for the AutoLog vehicle management application.
+const SYSTEM_PROMPT = `You are AutoLog AI, the official intelligent assistant for AutoLog, a vehicle management platform.
 
-You help users understand their vehicle data by calling the available tools to retrieve real data from their garage.
+Your goal is to help users manage, analyze, and understand their fleet data—including vehicles, expenses, fuel logs, service records, and maintenance reminders.
 
-Guidelines:
-- Always call the relevant tool(s) before answering data-related questions.
-- If the user asks about a specific vehicle by name/model, call getVehicles first to look up its ID, then use that ID in subsequent tool calls.
-- Summarise retrieved data clearly and concisely in natural language.
-- Format currency as USD with 2 decimal places. Format dates as human-readable (e.g. "August 15, 2026").
-- If no data is found for a query, say so politely and suggest what the user can add.
-- Do not invent data. Only describe what the tools actually return.
-- Keep your responses focused and helpful.
-- Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
+CORE OPERATIONAL RULES:
+1. DATA TRUTH & TOOLS:
+   - Always call the relevant tool(s) before answering questions about the user's vehicles, spending, fuel, services, or reminders.
+   - Never invent or fabricate vehicles, dates, amounts, categories, or records. Tool results are your absolute source of truth.
+   - If no data is found, state so clearly and politely (e.g. "No fuel logs found for this vehicle yet.").
+
+2. AMBIGUITY & CLARIFICATION:
+   - If a user request is genuinely ambiguous (e.g., "How much did I spend last month?" or "Show me my logs"), do NOT make blind assumptions. Briefly ask a clarifying question to ask whether they mean general expenses, fuel logs, service records, or total maintenance spending.
+   - When intent is specific (e.g. "How much have I spent maintaining my vehicles?"), call both service records and expense tools, sum them up, and provide a clear breakdown.
+
+3. MULTI-TOOL COMBINATIONS & CALCULATIONS:
+   - Combine multiple tool calls when answering queries that cross categories (e.g. retrieve both service records and expenses for maintenance spending).
+   - Perform calculations (totals, averages, per-vehicle comparisons) accurately based strictly on retrieved data.
+
+4. CONVERSATIONAL CONTEXT:
+   - Pay attention to previous messages in the conversation. When the user asks follow-up questions (e.g. "What about fuel expenses?"), maintain the context (e.g., the vehicle or date range discussed previously) without asking the user to repeat details.
+
+5. PRIVACY OF INTERNAL SYSTEM:
+   - NEVER expose internal tool names (e.g. do NOT say "I called getVehicles"), SQL tables, API routes, or code implementation details. Speak naturally as a vehicle management assistant.
+
+6. DISTINCTION BETWEEN USER DATA & GENERAL KNOWLEDGE:
+   - Clearly distinguish between stored AutoLog records and general automotive knowledge (e.g. general maintenance recommendations vs. the user's recorded history).
+
+7. FORMATTING & CONCISENESS:
+   - Keep answers concise, natural, and helpful.
+   - Use bullet points or small markdown tables when displaying breakdowns or comparisons.
+
+8. DIRECT USER RESPONSE ONLY (NO SCRATCHPAD/THINKING):
+   - NEVER output internal thinking steps, chain-of-thought analysis, rule evaluation, or text like "Here's a thinking process:". Provide ONLY the final conversational answer for the user.
+
+Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
+
+/** Clean any residual thinking process or <think> tags from model output */
+function cleanAiResponse(reply: string): string {
+  if (!reply) return reply;
+
+  // Remove XML-style <think>...</think> tags
+  let cleaned = reply.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+  // Remove "Here's a thinking process: ..." blocks if model output chain-of-thought text
+  if (/here['’]?s a thinking process/i.test(cleaned) || /thinking process:/i.test(cleaned)) {
+    const lines = cleaned.split("\n");
+    const cleanLines: string[] = [];
+    let inThinking = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^(here['’]?s a thinking process|thinking process:)/i.test(trimmed)) {
+        inThinking = true;
+        continue;
+      }
+      if (inThinking) {
+        if (
+          trimmed.startsWith('"') ||
+          /^(hey|hi|when you|to give|just to|based on|you have|here is|here's|to provide|could you)/i.test(trimmed)
+        ) {
+          inThinking = false;
+        }
+      }
+      if (!inThinking) {
+        cleanLines.push(line);
+      }
+    }
+    const result = cleanLines.join("\n").trim();
+    if (result) cleaned = result;
+  }
+
+  // Remove surrounding quotation marks if the whole response was wrapped in quotes by thinking parser
+  if (cleaned.startsWith('"') && cleaned.endsWith('"') && cleaned.length > 2) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+
+  return cleaned;
+}
 
 const MAX_TOOL_ROUNDS = 4; // prevent infinite loops
 
@@ -146,9 +211,10 @@ export async function POST(request: Request) {
 
     /* ── 4b. Model returned a final text response ── */
     const finalReply = assistantMessage.content ?? "(no response)";
+    const cleanedReply = cleanAiResponse(finalReply);
 
     return NextResponse.json({
-      reply: finalReply,
+      reply: cleanedReply,
       model: response.model,
       toolsUsed: toolCallLog.map((t) => t.tool),
       toolCallLog,

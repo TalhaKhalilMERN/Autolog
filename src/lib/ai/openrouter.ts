@@ -96,7 +96,7 @@ export async function openRouterChat(
   const payload: Record<string, unknown> = {
     model: options.model ?? "openrouter/free",
     messages: options.messages,
-    max_tokens: options.maxTokens ?? 512,
+    max_tokens: options.maxTokens ?? 1024,
     temperature: options.temperature ?? 0.3,
   };
 
