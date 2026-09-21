@@ -303,23 +303,7 @@ export default function AiAssistantPage() {
                       <p className="text-xs leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                     ) : (
                       <FormattedMessage content={msg.content} />
-                    )}
                   </div>
-
-                  {/* Tools used badge */}
-                  {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                    <div className="mt-1.5 flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground flex-wrap">
-                      <span className="font-medium text-foreground/70">Database tools:</span>
-                      {msg.toolsUsed.map((tool) => (
-                        <span
-                          key={tool}
-                          className="rounded-full border border-border bg-muted/40 px-2 py-0.5 font-mono text-[9px] text-muted-foreground"
-                        >
-                          {tool}
-                        </span>
-                      ))}
-                    </div>
-                  )}
 
                 </div>
               </div>
