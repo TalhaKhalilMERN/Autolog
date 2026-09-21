@@ -254,19 +254,17 @@ export default function AiAssistantPage() {
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex items-start gap-3 ${
-                  msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                }`}
+                className={`flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                  }`}
               >
                 {/* Avatar */}
                 <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : msg.isError
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm ${msg.role === "user"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : msg.isError
                       ? "bg-destructive/10 text-destructive border-destructive/20"
                       : "bg-gradient-primary text-primary-foreground border-primary/20"
-                  }`}
+                    }`}
                 >
                   {msg.role === "user" ? (
                     <User className="h-4 w-4" />
@@ -276,9 +274,8 @@ export default function AiAssistantPage() {
                 </div>
 
                 {/* Bubble Container */}
-                <div className={`flex flex-col min-w-0 max-w-[85%] sm:max-w-[78%] ${
-                  msg.role === "user" ? "items-end" : "items-start"
-                }`}>
+                <div className={`flex flex-col min-w-0 max-w-[85%] sm:max-w-[78%] ${msg.role === "user" ? "items-end" : "items-start"
+                  }`}>
 
                   {/* Header info */}
                   <div className="flex items-center gap-2 mb-1 px-1 text-[10px] text-muted-foreground">
@@ -291,18 +288,18 @@ export default function AiAssistantPage() {
 
                   {/* Bubble content */}
                   <div
-                    className={`rounded-2xl px-4 py-3 shadow-sm ${
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-tr-xs"
-                        : msg.isError
+                    className={`rounded-2xl px-4 py-3 shadow-sm ${msg.role === "user"
+                      ? "bg-primary text-primary-foreground rounded-tr-xs"
+                      : msg.isError
                         ? "bg-destructive/10 border border-destructive/30 text-destructive rounded-tl-xs"
                         : "bg-card border border-border/80 text-foreground rounded-tl-xs"
-                    }`}
+                      }`}
                   >
                     {msg.role === "user" ? (
                       <p className="text-xs leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                     ) : (
                       <FormattedMessage content={msg.content} />
+                    )}
                   </div>
 
                 </div>
@@ -362,7 +359,7 @@ export default function AiAssistantPage() {
             e.preventDefault();
             handleSubmit();
           }}
-          className="flex items-end gap-2"
+          className="flex gap-2"
         >
           <div className="relative flex-1 min-w-0">
             <textarea
@@ -378,7 +375,7 @@ export default function AiAssistantPage() {
               placeholder="Ask AutoLog AI about your vehicles, expenses, fuel logs, or maintenance..."
               rows={1}
               disabled={isLoading}
-              className="w-full resize-none rounded-xl border border-border/60 bg-background px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+              className="block w-full resize-none rounded-xl border border-border/60 bg-background px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
               style={{ minHeight: "42px", maxHeight: "120px" }}
             />
           </div>
@@ -396,13 +393,6 @@ export default function AiAssistantPage() {
             )}
           </button>
         </form>
-        <div className="mt-1.5 flex items-center justify-between px-1 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Info className="h-3 w-3" />
-            Press <kbd className="rounded border border-border bg-muted/40 px-1 py-0.2 font-mono">Enter</kbd> to send, <kbd className="rounded border border-border bg-muted/40 px-1 py-0.2 font-mono">Shift + Enter</kbd> for line break
-          </span>
-          <span className="hidden sm:inline">Powered by OpenRouter & Supabase RLS</span>
-        </div>
       </div>
 
     </div>
